@@ -81,7 +81,7 @@ RUN echo "$USER:$PASSWD" | chpasswd
 
 # Create directory for DAOS backend storage
 RUN mkdir /mnt/daos
-RUN chown daos.daos /mnt/daos
+RUN chown daos.daos /mnt/daos || { cat /etc/passwd; cat /etc/group; cat /etc/shadow; chown daos /mnt/daos; chgrp daos /mnt/daos; ls -ld /mnt/daos; }
 
 # Dependencies
 # Packages for NVML exist in CentOS, but are
