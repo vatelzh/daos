@@ -869,13 +869,6 @@ pipeline {
                     }
                 }
                 stage('Build on Leap 15') {
-                    when {
-                        beforeAgent true
-                        allOf {
-                            branch target_branch
-                            expression { ! quickbuild() }
-                        }
-                    }
                     agent {
                         dockerfile {
                             filename 'Dockerfile.leap.15'
