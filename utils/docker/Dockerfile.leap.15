@@ -93,7 +93,7 @@ ARG CART_COMMIT=""
 ARG REPOS=""
 RUN if $QUICKBUILD; then                                                                                         \
         zypper --non-interactive addrepo --no-gpgcheck                                                           \
-               https://repo.dc.hpdd.intel.com/repository/daos-stack-el-7-x86_64-stable-local;                    \
+               https://repo.dc.hpdd.intel.com/repository/daos-stack-leap-15-x86_64-stable-local daos-local;      \
         for repo in $REPOS; do                                                                                   \
             branch="master";                                                                                     \
             build_number="lastSuccessfulBuild";                                                                  \
@@ -106,7 +106,8 @@ RUN if $QUICKBUILD; then                                                        
                 fi;                                                                                              \
             fi;                                                                                                  \
             zypper --non-interactive addrepo --no-gpgcheck                                                       \
-                   ${JENKINS_URL}job/daos-stack/job/$repo/job/$branch/$build_number/artifact/artifacts/leap15/;  \
+                   ${JENKINS_URL}job/daos-stack/job/$repo/job/$branch/$build_number/artifact/artifacts/leap15/   \
+                   $repo:$branch:$build_number;                                                                  \
         done;                                                                                                    \
         echo "Installing: $QUICKBUILD_DEPS";                                                                     \
         echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install;                      \
