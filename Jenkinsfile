@@ -114,6 +114,10 @@ def el7_daos_repos() {
     return el7_component_repos + ' ' + component_repos() + ' ' + daos_repo()
 }
 
+def leap15_daos_repos() {
+    return leap15_component_repos + ' ' + component_repos() + ' ' + daos_repo()
+}
+
 commit_pragma_cache = [:]
 def cachedCommitPragma(Map config) {
 
@@ -163,6 +167,7 @@ def sanitized_JOB_NAME = JOB_NAME.toLowerCase().replaceAll('/', '-').replaceAll(
 
 def qb_inst_rpms = ""
 el7_component_repos = ""
+leap15_component_repos = ""
 def functional_rpms  = "--exclude openmpi openmpi3 hwloc ndctl " +
                        "ior-hpc-cart-4-daos-0 " +
                        "romio-tests-cart-4-daos-0 hdf5-tests-cart-4-daos-0 " +
@@ -876,13 +881,49 @@ pipeline {
                             filename 'Dockerfile.leap.15'
                             dir 'utils/docker'
                             label 'docker_runner'
-                            additionalBuildArgs "-t ${sanitized_JOB_NAME}-leap15 " + '$BUILDARGS'
+                            additionalBuildArgs "-t ${sanitized_JOB_NAME}-leap15 " +
+                                                '$BUILDARGS ' +
+                                                '--build-arg QUICKBUILD=' + env.QUICKBUILD +
+                                                ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS +
+                                                '" --build-arg CART_COMMIT=-' + env.CART_COMMIT +
+                                                ' --build-arg REPOS="' + component_repos + '"'
                         }
                     }
                     steps {
                         sconsBuild clean: "_build.external${arch}",
                                    parallel_build: parallel_build(),
                                    failure_artifacts: 'config.log-leap15-gcc'
+                        stash name: 'Leap-install', includes: 'install/**'
+                        stash name: 'Leap-build-vars', includes: ".build_vars${arch}.*"
+                        stash name: 'Leap-tests',
+                                    includes: '''build/src/rdb/raft/src/tests_main,
+                                                 build/src/common/tests/btree_direct,
+                                                 build/src/common/tests/btree,
+                                                 build/src/common/tests/sched,
+                                                 build/src/common/tests/drpc_tests,
+                                                 build/src/common/tests/acl_api_tests,
+                                                 build/src/common/tests/acl_valid_tests,
+                                                 build/src/common/tests/acl_util_tests,
+                                                 build/src/common/tests/acl_principal_tests,
+                                                 build/src/common/tests/acl_real_tests,
+                                                 build/src/common/tests/prop_tests,
+                                                 build/src/iosrv/tests/drpc_progress_tests,
+                                                 build/src/control/src/github.com/daos-stack/daos/src/control/mgmt,
+                                                 build/src/client/api/tests/eq_tests,
+                                                 build/src/iosrv/tests/drpc_handler_tests,
+                                                 build/src/iosrv/tests/drpc_listener_tests,
+                                                 build/src/mgmt/tests/srv_drpc_tests,
+                                                 build/src/security/tests/cli_security_tests,
+                                                 build/src/security/tests/srv_acl_tests,
+                                                 build/src/vos/vea/tests/vea_ut,
+                                                 build/src/common/tests/umem_test,
+                                                 build/src/bio/smd/tests/smd_ut,
+                                                 scons_local/build_info/**,
+                                                 src/common/tests/btree.sh,
+                                                 src/control/run_go_tests.sh,
+                                                 src/rdb/raft_tests/raft_tests.py,
+                                                 src/vos/tests/evt_ctl.sh
+                                                 src/control/lib/netdetect/netdetect.go'''
                     }
                     post {
                         always {
@@ -902,13 +943,13 @@ pipeline {
                             */
                         }
                         success {
+                            sh "rm -rf _build.external${arch}"
                             /* temporarily moved into stepResult due to JENKINS-39203
                             githubNotify credentialsId: 'daos-jenkins-commit-status',
                                          description: env.STAGE_NAME,
                                          context: 'build/' + env.STAGE_NAME,
                                          status: 'SUCCESS'
                             */
-                            sh "rm -rf _build.external${arch}"
                         }
                         unsuccessful {
                             sh """if [ -f config${arch}.log ]; then
@@ -1461,7 +1502,7 @@ pipeline {
                         */
                     }
                 }
-                stage('Functional_Hardware_Large') {
+                stage('Functional_Hardware_Large EL7') {
                     when {
                         beforeAgent true
                         allOf {
@@ -1492,6 +1533,93 @@ pipeline {
                     post {
                         always {
                             functional_post_always()
+                            archiveArtifacts artifacts: 'Functional/**'
+                            junit 'Functional/*/results.xml, install/lib/daos/TESTING/ftest/*_results.xml'
+                        }
+                        /* temporarily moved into runTest->stepResult due to JENKINS-39203
+                        success {
+                            githubNotify credentialsId: 'daos-jenkins-commit-status',
+                                         description: env.STAGE_NAME,
+                                         context: 'test/' + env.STAGE_NAME,
+                                         status: 'SUCCESS'
+                        }
+                        unstable {
+                            githubNotify credentialsId: 'daos-jenkins-commit-status',
+                                         description: env.STAGE_NAME,
+                                         context: 'test/' + env.STAGE_NAME,
+                                         status: 'FAILURE'
+                        }
+                        failure {
+                            githubNotify credentialsId: 'daos-jenkins-commit-status',
+                                         description: env.STAGE_NAME,
+                                         context: 'test/' + env.STAGE_NAME,
+                                         status: 'ERROR'
+                        }
+                        */
+                    }
+                }
+                stage('Functional_Hardware_Large Leap15') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { env.DAOS_STACK_CI_HARDWARE_SKIP != 'true' }
+                            expression {
+                                ! commitPragma(pragma: 'Skip-func-hw-test').contains('true')
+                            }
+                            expression {
+                                ! commitPragma(pragma: 'Skip-func-hw-test-large').contains('true')
+                            }
+                        }
+                    }
+                    agent {
+                        // 8+ node cluster with 1 IB/node + 1 test control node
+                        label 'ci_nvme9'
+                    }
+                    steps {
+                        unstash 'Leap-rpm-version'
+                        script {
+                            daos_packages_version = readFile('leap15-rpm-version').trim()
+                        }
+                        // Just reboot the physical nodes
+                        provisionNodes NODELIST: env.NODELIST,
+                                       node_count: 9,
+                                       power_only: true,
+                                       inst_repos: leap15_daos_repos(),
+                                       inst_rpms: 'daos-' + daos_packages_version +
+                                                  ' daos-client-' + daos_packages_version +
+                                                  ' cart-' + env.CART_COMMIT + ' ' +
+                                                  functional_rpms
+                        runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                                script: '''test_tag=$(git show -s --format=%B | sed -ne "/^Test-tag-hw-large:/s/^.*: *//p")
+                                           if [ -z "$test_tag" ]; then
+                                               test_tag=pr,hw,large
+                                           fi
+                                           tnodes=$(echo $NODELIST | cut -d ',' -f 1-9)
+                                           # set DAOS_TARGET_OVERSUBSCRIBE env here
+                                           export DAOS_TARGET_OVERSUBSCRIBE=1
+                                           rm -rf install/lib/daos/TESTING/ftest/avocado ./*_results.xml
+                                           mkdir -p install/lib/daos/TESTING/ftest/avocado/job-results
+                                           ./ftest.sh "$test_tag" $tnodes "auto:Optane"''',
+                                junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
+                                failure_artifacts: 'Functional'
+                    }
+                    post {
+                        always {
+                            sh '''rm -rf install/lib/daos/TESTING/ftest/avocado/*/*/html/
+                                  # Remove the latest avocado symlink directory to avoid inclusion in the
+                                  # jenkins build artifacts
+                                  unlink install/lib/daos/TESTING/ftest/avocado/job-results/latest
+                                  rm -rf "Functional/"
+                                  mkdir "Functional/"
+                                  # compress those potentially huge DAOS logs
+                                  if daos_logs=$(ls install/lib/daos/TESTING/ftest/avocado/job-results/*/daos_logs/*); then
+                                      lbzip2 $daos_logs
+                                  fi
+                                  arts="$arts$(ls *daos{,_agent}.log* 2>/dev/null)" && arts="$arts"$'\n'
+                                  arts="$arts$(ls -d install/lib/daos/TESTING/ftest/avocado/job-results/* 2>/dev/null)" && arts="$arts"$'\n'
+                                  if [ -n "$arts" ]; then
+                                      mv $(echo $arts | tr '\n' ' ') "Functional/"
+                                  fi'''
                             archiveArtifacts artifacts: 'Functional/**'
                             junit 'Functional/*/results.xml, install/lib/daos/TESTING/ftest/*_results.xml'
                         }
