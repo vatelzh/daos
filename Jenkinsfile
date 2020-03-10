@@ -883,6 +883,8 @@ pipeline {
                         }
                     }
                     steps {
+                        sh 'rpm -q libatomic1 || true'
+                        sh 'find / -name libatomic.so\\* || true'
                         sconsBuild clean: "_build.external${arch}",
                                    parallel_build: parallel_build(),
                                    failure_artifacts: 'config.log-leap15-gcc'
