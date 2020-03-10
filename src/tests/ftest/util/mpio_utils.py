@@ -49,9 +49,11 @@ class MpioUtils():
 
         Returns:
             bool: whether mpich is installed on the first host in the list
-
         """
         load_mpi('mpich')
+        print("Post load_mpi('mpich'):")
+        print(subprocess.check_output("env", shell=True))
+
         try:
             # checking mpich install
             cmd = "/usr/bin/ssh {} command -v mpichversion".format(hostlist[0])
