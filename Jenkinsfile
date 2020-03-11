@@ -305,8 +305,12 @@ pipeline {
                     "--build-arg CACHEBUST=${currentBuild.startTimeInMillis}"
         SSH_KEY_ARGS = "-ici_key"
         CLUSH_ARGS = "-o$SSH_KEY_ARGS"
-        QUICKBUILD_DEPS = sh script: "rpmspec -q --srpm --requires utils/rpms/daos.spec 2>/dev/null",
-                             returnStdout: true
+        CART_COMMIT = sh(script: "sed -ne 's/CART *= *\\(.*\\)/\\1/p' utils/build.config",
+                         returnStdout: true).trim()
+        QUICKBUILD_DEPS_EL7 = sh(script: "rpmspec -q --undefine suse_version --define rhel\\ 7 --define cart_sha1\\ ${env.CART_COMMIT} --srpm --requires utils/rpms/daos.spec 2>/dev/null",
+                                 returnStdout: true)
+        QUICKBUILD_DEPS_LEAP15 = sh(script: "rpmspec -q --undefine rhel --define suse_version\\ 1501 --define cart_sha1\\ ${env.CART_COMMIT} --srpm --requires utils/rpms/daos.spec 2>/dev/null",
+                                    returnStdout: true)
         TEST_RPMS = cachedCommitPragma(pragma: 'RPM-test', def_val: 'false')
     }
 
@@ -597,6 +601,7 @@ pipeline {
                                                 '$BUILDARGS ' +
                                                 '--build-arg QUICKBUILD=' + quickbuild() +
                                                 ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS +
+                                                '" --build-arg CART_COMMIT=-' + env.CART_COMMIT +
                                                 '" --build-arg REPOS="' + component_repos() + '"'
                         }
                     }
@@ -877,7 +882,7 @@ pipeline {
                             additionalBuildArgs "-t ${sanitized_JOB_NAME}-leap15 " +
                                                 '$BUILDARGS ' +
                                                 '--build-arg QUICKBUILD=' + env.QUICKBUILD +
-                                                ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS +
+                                                ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS_LEAP15 +
                                                 '" --build-arg CART_COMMIT=-' + env.CART_COMMIT +
                                                 ' --build-arg REPOS="' + component_repos + '"'
                         }
@@ -1296,8 +1301,9 @@ pipeline {
                             additionalBuildArgs "-t ${sanitized_JOB_NAME}-centos7 " +
                                                 '$BUILDARGS ' +
                                                 '--build-arg QUICKBUILD=true' +
-                                                ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS +
-                                                '" --build-arg REPOS="' + component_repos() + '"'
+                                                ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS_EL7 +
+                                                '" --build-arg CART_COMMIT=-' + env.CART_COMMIT +
+                                                ' --build-arg REPOS="' + component_repos() + '"'
                         }
                     }
                     steps {
