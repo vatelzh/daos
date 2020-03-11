@@ -111,6 +111,7 @@ RUN if $QUICKBUILD; then                                                        
                    ${JENKINS_URL}job/daos-stack/job/$repo/job/$branch/$build_number/artifact/artifacts/leap15/   \
                    $repo:$branch:$build_number;                                                                  \
         done;                                                                                                    \
+        zypper --gpg-auto-import-keys ref;                                                                       \
         echo "Installing: $QUICKBUILD_DEPS";                                                                     \
         echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install;                      \
     fi
