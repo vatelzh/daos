@@ -94,7 +94,7 @@ ARG REPOS=""
 RUN if $QUICKBUILD; then                                                                                         \
         zypper --non-interactive addrepo --no-gpgcheck                                                           \
                http://repo.dc.hpdd.intel.com/repository/daos-stack-leap-15-x86_64-stable-local/ daos-local;      \
-        zypper --non-interactive addrepo                                                                         \
+        zypper --non-interactive addrepo --no-gpgcheck                                                           \
                http://repo.dc.hpdd.intel.com/repository/daos-stack-external-leap-15-x86_64-stable-group/ leap15; \
         for repo in $REPOS; do                                                                                   \
             branch="master";                                                                                     \
