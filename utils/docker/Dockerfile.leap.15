@@ -116,7 +116,7 @@ RUN if $QUICKBUILD; then                                                        
         set -x;                                                                                                  \
         cat /etc/zypp/zypp.conf;                                                                                 \
         echo "solver.allowVendorChange = true" >> /etc/zypp/zypp.conf;                                           \
-        echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install --force;              \
+        echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install;                      \
     fi
 
 # force an upgrade to get any newly built RPMs
