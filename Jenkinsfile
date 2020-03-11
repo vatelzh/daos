@@ -1568,7 +1568,7 @@ pipeline {
                                 ! commitPragma(pragma: 'Skip-func-hw-test').contains('true')
                             }
                             expression {
-                                ! commitPragma(pragma: 'Skip-func-hw-test-large').contains('true')
+                                ! commitPragma(pragma: 'Skip-func-hw-test-large-leap15').contains('true')
                             }
                         }
                     }
@@ -1585,7 +1585,7 @@ pipeline {
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 9,
                                        profile: 'daos_ci',
-                                       distro: 'leap15',
+                                       distro: 'opensuse15',
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: 'daos-' + daos_packages_version +
                                                   ' daos-client-' + daos_packages_version +
