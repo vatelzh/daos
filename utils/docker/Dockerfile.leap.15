@@ -114,6 +114,8 @@ RUN if $QUICKBUILD; then                                                        
         zypper --non-interactive --gpg-auto-import-keys refresh leap15;                                          \
         echo "Installing: $QUICKBUILD_DEPS";                                                                     \
         set -x;                                                                                                  \
+        cat /etc/zypp/zypp.conf;                                                                                 \
+        echo "solver.allowVendorChange = true" >> /etc/zypp/zypp.conf;                                           \
         echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install --force;              \
     fi
 
