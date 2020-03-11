@@ -1584,7 +1584,8 @@ pipeline {
                         // Just reboot the physical nodes
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 9,
-                                       power_only: true,
+                                       profile: 'daos_ci',
+                                       distro: 'leap15',
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: 'daos-' + daos_packages_version +
                                                   ' daos-client-' + daos_packages_version +
