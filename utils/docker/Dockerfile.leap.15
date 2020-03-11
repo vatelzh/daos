@@ -121,7 +121,7 @@ RUN if $QUICKBUILD; then                                                        
 
 # scratch build of scons-3.1.2
 RUN curl -v -L -o scons-3.1.2-lp152.87.1.x86_64.rpm https://da.gd/kpFS &&             \
-    zypper --non-interactive --no-gpgchecks install scons-3.1.2-lp152.87.1.x86_64.rpm
+    zypper --non-interactive --no-gpg-checks install scons-3.1.2-lp152.87.1.x86_64.rpm
 
 # force an upgrade to get any newly built RPMs
 ARG CACHEBUST=1
