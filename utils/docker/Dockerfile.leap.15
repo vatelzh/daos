@@ -93,9 +93,9 @@ ARG CART_COMMIT=""
 ARG REPOS=""
 RUN if $QUICKBUILD; then                                                                                         \
         zypper --non-interactive addrepo --no-gpgcheck                                                           \
-               https://repo.dc.hpdd.intel.com/repository/daos-stack-leap-15-x86_64-stable-local daos-local;      \
+               http://repo.dc.hpdd.intel.com/repository/daos-stack-leap-15-x86_64-stable-local/ daos-local;      \
         zypper --non-interactive addrepo                                                                         \
-               https://repo.dc.hpdd.intel.com/repository/daos-stack-external-leap-15-x86_64-stable-group leap15; \
+               http://repo.dc.hpdd.intel.com/repository/daos-stack-external-leap-15-x86_64-stable-group/ leap15; \
         for repo in $REPOS; do                                                                                   \
             branch="master";                                                                                     \
             build_number="lastSuccessfulBuild";                                                                  \
