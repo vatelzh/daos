@@ -114,7 +114,7 @@ RUN if $QUICKBUILD; then                                                        
         zypper --non-interactive --gpg-auto-import-keys refresh leap15;                                          \
         echo "Installing: $QUICKBUILD_DEPS";                                                                     \
         set -x;                                                                                                  \
-        echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install −-force;              \
+        echo "$QUICKBUILD_DEPS" | tr '\n' '\0' | xargs -0 zypper --non-interactive install --force;              \
     fi
 
 # force an upgrade to get any newly built RPMs
