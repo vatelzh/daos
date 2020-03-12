@@ -152,7 +152,7 @@ if ! clush "${CLUSH_ARGS[@]}" -B -l "${REMOTE_ACCT:-jenkins}" -R ssh -S \
 # make sure home is owned by us
 pwd
 ls -ld .
-chown jenkins.jenkins .
+sudo chown jenkins.jenkins .
 # allow core files to be generated
 sudo bash -c \"set -ex
 if [ \\\"\\\$(ulimit -c)\\\" != \\\"unlimited\\\" ]; then
