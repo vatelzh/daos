@@ -168,10 +168,12 @@ def sanitized_JOB_NAME = JOB_NAME.toLowerCase().replaceAll('/', '-').replaceAll(
 def qb_inst_rpms = ""
 el7_component_repos = ""
 leap15_component_repos = ""
-def functional_rpms  = "--exclude openmpi openmpi3 hwloc ndctl " +
-                       "ior-hpc-cart-4-daos-0 " +
-                       "romio-tests-cart-4-daos-0 hdf5-tests-cart-4-daos-0 " +
-                       "mpi4py-tests-cart-4-daos-0 testmpio-cart-4-daos-0 fio"
+def el7_functional_rpms = "openmpi3 hwloc ndctl " +
+                          "ior-hpc-cart-4-daos-0 " +
+                          "romio-tests-cart-4-daos-0 hdf5-tests-cart-4-daos-0 " +
+                          "mpi4py-tests-cart-4-daos-0 testmpio-cart-4-daos-0 fio"
+def el7_functional_rpms  = "--exclude openmpi " + functional_rpms
+def leap15_functional_rpms  = functional_rpms
 
 def rpm_test_pre = '''if git show -s --format=%B | grep "^Skip-test: true"; then
                           exit 0
@@ -1355,7 +1357,8 @@ pipeline {
                                        snapshot: true,
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
-                                                  functional_rpms
+                                                  ' cart-' + env.CART_COMMIT + ' ' +
+                                                  el7_functional_rpms
                         runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
@@ -1411,7 +1414,8 @@ pipeline {
                                        distro: 'el7',
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
-                                                  functional_rpms
+                                                  ' cart-' + env.CART_COMMIT + ' ' +
+                                                  el7_functional_rpms
                         runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-small',
@@ -1467,7 +1471,8 @@ pipeline {
                                        distro: 'el7',
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
-                                                  functional_rpms
+                                                  ' cart-' + env.CART_COMMIT + ' ' +
+                                                  el7_functional_rpms
                         runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-medium',
@@ -1523,7 +1528,8 @@ pipeline {
                                        distro: 'el7',
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
-                                                  functional_rpms
+                                                  ' cart-' + env.CART_COMMIT + ' ' +
+                                                  el7_functional_rpms
                         runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-large',
@@ -1590,14 +1596,14 @@ pipeline {
                                        inst_rpms: 'daos-' + daos_packages_version +
                                                   ' daos-client-' + daos_packages_version +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
-                                                  functional_rpms + ' libatomic1'
+                                                  leap15_functional_rpms + ' libatomic1'
                         runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                 script: '''test_tag=$(git show -s --format=%B | sed -ne "/^Test-tag-hw-large:/s/^.*: *//p")
                                            if [ -z "$test_tag" ]; then
                                                test_tag=pr,hw,large
                                            fi
-                                           zypper lr
-                                           zypper info libatomic1
+                                           zypper lr || true
+                                           zypper info libatomic1 || true
                                            tnodes=$(echo $NODELIST | cut -d ',' -f 1-9)
                                            # set DAOS_TARGET_OVERSUBSCRIBE env here
                                            export DAOS_TARGET_OVERSUBSCRIBE=1
