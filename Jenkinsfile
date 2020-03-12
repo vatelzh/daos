@@ -174,7 +174,7 @@ def functional_rpms = "openmpi3 hwloc ndctl " +
                       "mpi4py-tests-cart-4-daos-0 testmpio-cart-4-daos-0 fio"
 // need to exclude openmpi until we remove it from the repo
 def el7_functional_rpms  = "--exclude openmpi " + functional_rpms
-def leap15_functional_rpms  = functional_rpms
+def leap15_functional_rpms  = functional_rpms + ' libatomic1'
 
 def rpm_test_pre = '''if git show -s --format=%B | grep "^Skip-test: true"; then
                           exit 0
@@ -1395,6 +1395,87 @@ pipeline {
                         */
                     }
                 }
+                stage('Functional on Leap 15') {
+                    when {
+                        beforeAgent true
+                        expression {
+                            ! commitPragma(pragma: 'Skip-func-test-leap15').contains('true')
+                        }
+                    }
+                    agent {
+                        label 'stage_vm9'
+                    }
+                    steps {
+                        unstash 'Leap-rpm-version'
+                        script {
+                            daos_packages_version = readFile('leap15-rpm-version').trim()
+                        }
+                        provisionNodes NODELIST: env.NODELIST,
+                                       node_count: 9,
+                                       profile: 'daos_ci',
+                                       distro: 'opensuse15',
+                                       snapshot: true,
+                                       inst_repos: leap15_daos_repos,
+                                       inst_rpms: 'daos-' + daos_packages_version +
+                                                  ' daos-client-' + daos_packages_version +
+                                                  ' cart-' + env.CART_COMMIT + ' ' +
+                                                  leap15_functional_rpms
+                        runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                                script: '''test_tag=$(git show -s --format=%B | sed -ne "/^Test-tag:/s/^.*: *//p")
+                                           if [ -z "$test_tag" ]; then
+                                               test_tag=pr,-hw
+                                           fi
+                                           tnodes=$(echo $NODELIST | cut -d ',' -f 1-9)
+                                           # set DAOS_TARGET_OVERSUBSCRIBE env here
+                                           export DAOS_TARGET_OVERSUBSCRIBE=0
+                                           rm -rf install/lib/daos/TESTING/ftest/avocado ./*_results.xml
+                                           mkdir -p install/lib/daos/TESTING/ftest/avocado/job-results
+                                           ./ftest.sh "$test_tag" $tnodes''',
+                                junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
+                                failure_artifacts: 'Functional'
+                    }
+                    post {
+                        always {
+                            sh '''rm -rf install/lib/daos/TESTING/ftest/avocado/*/*/html/
+                                  # Remove the latest avocado symlink directory to avoid inclusion in the
+                                  # jenkins build artifacts
+                                  unlink install/lib/daos/TESTING/ftest/avocado/job-results/latest
+                                  rm -rf "Functional/"
+                                  mkdir "Functional/"
+                                  # compress those potentially huge DAOS logs
+                                  if daos_logs=$(ls install/lib/daos/TESTING/ftest/avocado/job-results/*/daos_logs/*); then
+                                      lbzip2 $daos_logs
+                                  fi
+                                  arts="$arts$(ls *daos{,_agent}.log* 2>/dev/null)" && arts="$arts"$'\n'
+                                  arts="$arts$(ls -d install/lib/daos/TESTING/ftest/avocado/job-results/* 2>/dev/null)" && arts="$arts"$'\n'
+                                  if [ -n "$arts" ]; then
+                                      mv $(echo $arts | tr '\n' ' ') "Functional/"
+                                  fi'''
+                            archiveArtifacts artifacts: 'Functional/**'
+                            junit 'Functional/*/results.xml, install/lib/daos/TESTING/ftest/*_results.xml'
+                        }
+                        /* temporarily moved into runTest->stepResult due to JENKINS-39203
+                        success {
+                            githubNotify credentialsId: 'daos-jenkins-commit-status',
+                                         description: env.STAGE_NAME,
+                                         context: 'test/' + env.STAGE_NAME,
+                                         status: 'SUCCESS'
+                        }
+                        unstable {
+                            githubNotify credentialsId: 'daos-jenkins-commit-status',
+                                         description: env.STAGE_NAME,
+                                         context: 'test/' + env.STAGE_NAME,
+                                         status: 'FAILURE'
+                        }
+                        failure {
+                            githubNotify credentialsId: 'daos-jenkins-commit-status',
+                                         description: env.STAGE_NAME,
+                                         context: 'test/' + env.STAGE_NAME,
+                                         status: 'ERROR'
+                        }
+                        */
+                    }
+                }
                 stage('Functional_Hardware_Small') {
                     when {
                         beforeAgent true
@@ -1597,7 +1678,7 @@ pipeline {
                                        inst_rpms: 'daos-' + daos_packages_version +
                                                   ' daos-client-' + daos_packages_version +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
-                                                  leap15_functional_rpms + ' libatomic1'
+                                                  leap15_functional_rpms
                         runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                 script: '''test_tag=$(git show -s --format=%B | sed -ne "/^Test-tag-hw-large:/s/^.*: *//p")
                                            if [ -z "$test_tag" ]; then
