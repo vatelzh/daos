@@ -149,6 +149,10 @@ CLUSH_ARGS=($CLUSH_ARGS)
 DAOS_BASE=${SL_PREFIX%/install}
 if ! clush "${CLUSH_ARGS[@]}" -B -l "${REMOTE_ACCT:-jenkins}" -R ssh -S \
     -w "$(IFS=','; echo "${nodes[*]}")" "set -ex
+# make sure home is owned by us
+pwd
+ls -ld .
+chown jenkins.jenkins .
 # allow core files to be generated
 sudo bash -c \"set -ex
 if [ \\\"\\\$(ulimit -c)\\\" != \\\"unlimited\\\" ]; then
