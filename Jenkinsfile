@@ -1433,7 +1433,7 @@ pipeline {
                                                   ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
                         runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
-                                script: String.functional_test_script('', 'pr,-hw'),
+                                script: String.functional_test_script('', 'pr,-hw', ''),
                                 junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
                                 failure_artifacts: 'Functional'
                     }
