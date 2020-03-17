@@ -39,6 +39,7 @@
 // To use a test branch (i.e. PR) until it lands to master
 // I.e. for testing library changes
 //@Library(value="pipeline-lib@your_branch") _
+@Library(value="pipeline-lib@bmurrell/leap15") _
 
 def doc_only_change() {
 
@@ -171,10 +172,10 @@ leap15_component_repos = ""
 def functional_rpms = "openmpi3 hwloc ndctl " +
                       "ior-hpc-cart-4-daos-0 " +
                       "romio-tests-cart-4-daos-0 hdf5-tests-cart-4-daos-0 " +
-                      "mpi4py-tests-cart-4-daos-0 testmpio-cart-4-daos-0 fio"
+                      "testmpio-cart-4-daos-0 fio"
 // need to exclude openmpi until we remove it from the repo
-def el7_functional_rpms  = "--exclude openmpi " + functional_rpms
-def leap15_functional_rpms  = functional_rpms + ' libatomic1'
+def el7_functional_rpms  = "--exclude openmpi " + functional_rpms + " mpi4py-tests-cart-4-daos-0"
+def leap15_functional_rpms  = functional_rpms
 
 def rpm_test_pre = '''if git show -s --format=%B | grep "^Skip-test: true"; then
                           exit 0
@@ -278,7 +279,6 @@ def rpm_scan_post = '''rm -f ${WORKSPACE}/maldetect.xml
                        scp -i ci_key \
                          jenkins@${nodelist[0]}:/var/tmp/maldetect.xml \
                          ${WORKSPACE}/maldetect.xml'''
-
 
 // bail out of branch builds that are not on a whitelist
 if (!env.CHANGE_ID &&
