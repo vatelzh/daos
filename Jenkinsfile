@@ -1433,16 +1433,7 @@ pipeline {
                                                   ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
                         runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
-                                script: '''test_tag=$(git show -s --format=%B | sed -ne "/^Test-tag:/s/^.*: *//p")
-                                           if [ -z "$test_tag" ]; then
-                                               test_tag=pr,-hw
-                                           fi
-                                           tnodes=$(echo $NODELIST | cut -d ',' -f 1-9)
-                                           # set DAOS_TARGET_OVERSUBSCRIBE env here
-                                           export DAOS_TARGET_OVERSUBSCRIBE=0
-                                           rm -rf install/lib/daos/TESTING/ftest/avocado ./*_results.xml
-                                           mkdir -p install/lib/daos/TESTING/ftest/avocado/job-results
-                                           ./ftest.sh "$test_tag" $tnodes''',
+                                script: String.functional_test_script('', 'pr,-hw'),
                                 junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
                                 failure_artifacts: 'Functional'
                     }
@@ -1692,18 +1683,7 @@ pipeline {
                                                   ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
                         runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
-                                script: '''test_tag=$(git show -s --format=%B | sed -ne "/^Test-tag-hw-large:/s/^.*: *//p")
-                                           if [ -z "$test_tag" ]; then
-                                               test_tag=pr,hw,large
-                                           fi
-                                           zypper lr || true
-                                           zypper info libatomic1 || true
-                                           tnodes=$(echo $NODELIST | cut -d ',' -f 1-9)
-                                           # set DAOS_TARGET_OVERSUBSCRIBE env here
-                                           export DAOS_TARGET_OVERSUBSCRIBE=1
-                                           rm -rf install/lib/daos/TESTING/ftest/avocado ./*_results.xml
-                                           mkdir -p install/lib/daos/TESTING/ftest/avocado/job-results
-                                           ./ftest.sh "$test_tag" $tnodes "auto:Optane"''',
+                                script: String.functional_test_script('-hw-large', 'pr,hw,large', '"auto:Optane"'),
                                 junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
                                 failure_artifacts: 'Functional'
                     }
