@@ -1410,7 +1410,7 @@ pipeline {
                         script {
                             daos_packages_version = readFile('leap15-rpm-version').trim()
                         }
-                        sh label "Verify DAOS RPM version",
+                        sh label: "Verify DAOS RPM version",
                            script: 'if [ -z "' + daos_packages_version + '''" ]; then
                             echo "couldn't determine DAOS packages version from daos_packages_version:"
                             ls -l leap15-rpm-version || true
