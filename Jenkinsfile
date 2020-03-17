@@ -1409,13 +1409,19 @@ pipeline {
                         unstash 'Leap-rpm-version'
                         script {
                             daos_packages_version = readFile('leap15-rpm-version').trim()
+                            println("DAOS RPM version: " + daos_packages_version)
+                            println(daos_packages_version.length())
+                            if (daos_packages_version.length() < 1) {
+                                error("Could not determine the RPM version")
+                            }
                         }
                         sh label: "Verify DAOS RPM version",
                            script: 'if [ -z "' + daos_packages_version + '''" ]; then
-                            echo "couldn't determine DAOS packages version from daos_packages_version:"
-                            ls -l leap15-rpm-version || true
-                            cat leap15-rpm-version || true
-                            exit 1'''
+                                        echo "couldn't determine DAOS packages version from daos_packages_version:"
+                                        ls -l leap15-rpm-version || true
+                                        cat leap15-rpm-version || true
+                                        exit 1
+                                    fi'''
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 9,
                                        profile: 'daos_ci',
