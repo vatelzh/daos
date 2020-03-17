@@ -559,7 +559,7 @@ pipeline {
                                           createrepo artifacts/leap15/
                                           rpm --qf %{version}-%{release}.%{arch} -qp artifacts/centos7/daos-server-*.x86_64.rpm > leap15-rpm-version
                                           cat $mockroot/result/{root,build}.log'''
-                            stash name: 'Leap-rpm-version', includes: 'leap15-rpm-version'
+                            stash name: 'leap15-rpm-version', includes: 'leap15-rpm-version'
                             publishToRepository product: 'daos',
                                                 format: 'yum',
                                                 maturity: 'stable',
@@ -1398,62 +1398,30 @@ pipeline {
                 stage('Functional on Leap 15') {
                     when {
                         beforeAgent true
-                        expression {
-                            ! commitPragma(pragma: 'Skip-func-test-leap15').contains('true')
-                        }
+                        expression { ! skip_stage('func-test-leap15') }
                     }
                     agent {
                         label 'stage_vm9'
                     }
                     steps {
-                        unstash 'Leap-rpm-version'
-                        script {
-                            daos_packages_version = readFile('leap15-rpm-version').trim()
-                            println("DAOS RPM version: " + daos_packages_version)
-                            println(daos_packages_version.length())
-                            if (daos_packages_version.length() < 1) {
-                                error("Could not determine the RPM version")
-                            }
-                        }
-                        sh label: "Verify DAOS RPM version",
-                           script: 'if [ -z "' + daos_packages_version + '''" ]; then
-                                        echo "couldn't determine DAOS packages version from daos_packages_version:"
-                                        ls -l leap15-rpm-version || true
-                                        cat leap15-rpm-version || true
-                                        exit 1
-                                    fi'''
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 9,
                                        profile: 'daos_ci',
                                        distro: 'opensuse15',
                                        snapshot: true,
                                        inst_repos: leap15_daos_repos,
-                                       inst_rpms: 'daos-' + daos_packages_version +
-                                                  ' daos-client-' + daos_packages_version +
+                                       inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
-                        runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
-                                script: String.functional_test_script('', 'pr,-hw', ''),
-                                junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
-                                failure_artifacts: 'Functional'
-                    }
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                                          test_rpms: env.TEST_RPMS,
+                                          pragma_suffix: '',
+                                          test_tag: 'pr,-hw',
+                                          node_count: 9,
+                                          ftest_arg: ''
                     post {
                         always {
-                            sh '''rm -rf install/lib/daos/TESTING/ftest/avocado/*/*/html/
-                                  # Remove the latest avocado symlink directory to avoid inclusion in the
-                                  # jenkins build artifacts
-                                  unlink install/lib/daos/TESTING/ftest/avocado/job-results/latest
-                                  rm -rf "Functional/"
-                                  mkdir "Functional/"
-                                  # compress those potentially huge DAOS logs
-                                  if daos_logs=$(ls install/lib/daos/TESTING/ftest/avocado/job-results/*/daos_logs/*); then
-                                      lbzip2 $daos_logs
-                                  fi
-                                  arts="$arts$(ls *daos{,_agent}.log* 2>/dev/null)" && arts="$arts"$'\n'
-                                  arts="$arts$(ls -d install/lib/daos/TESTING/ftest/avocado/job-results/* 2>/dev/null)" && arts="$arts"$'\n'
-                                  if [ -n "$arts" ]; then
-                                      mv $(echo $arts | tr '\n' ' ') "Functional/"
-                                  fi'''
+                            functional_post_always()
                             archiveArtifacts artifacts: 'Functional/**'
                             junit 'Functional/*/results.xml, install/lib/daos/TESTING/ftest/*_results.xml'
                         }
@@ -1654,13 +1622,9 @@ pipeline {
                     when {
                         beforeAgent true
                         allOf {
-                            expression { env.DAOS_STACK_CI_HARDWARE_SKIP != 'true' }
-                            expression {
-                                ! commitPragma(pragma: 'Skip-func-hw-test').contains('true')
-                            }
-                            expression {
-                                ! commitPragma(pragma: 'Skip-func-hw-test-large-leap15').contains('true')
-                            }
+                            not { environment name: 'DAOS_STACK_CI_HARDWARE_SKIP', value: 'true' }
+                            expression { ! skip_stage('func-hw-test') }
+                            expression { ! skip_stage('func-hw-test-large-leap15') }
                         }
                     }
                     agent {
@@ -1668,42 +1632,24 @@ pipeline {
                         label 'ci_nvme9'
                     }
                     steps {
-                        unstash 'Leap-rpm-version'
-                        script {
-                            daos_packages_version = readFile('leap15-rpm-version').trim()
-                        }
-                        // Just reboot the physical nodes
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 9,
                                        profile: 'daos_ci',
                                        distro: 'opensuse15',
                                        inst_repos: leap15_daos_repos(),
-                                       inst_rpms: 'daos-' + daos_packages_version +
-                                                  ' daos-client-' + daos_packages_version +
+                                       inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
-                        runTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
-                                script: String.functional_test_script('-hw-large', 'pr,hw,large', '"auto:Optane"'),
-                                junit_files: "install/lib/daos/TESTING/ftest/avocado/*/*/*.xml install/lib/daos/TESTING/ftest/*_results.xml",
-                                failure_artifacts: 'Functional'
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                                          test_rpms: env.TEST_RPMS,
+                                          pragma_suffix: '-hw-large',
+                                          test_tag: 'pr,hw,large',
+                                          node_count: 9,
+                                          ftest_arg: '"auto:Optane"'
                     }
                     post {
                         always {
-                            sh '''rm -rf install/lib/daos/TESTING/ftest/avocado/*/*/html/
-                                  # Remove the latest avocado symlink directory to avoid inclusion in the
-                                  # jenkins build artifacts
-                                  unlink install/lib/daos/TESTING/ftest/avocado/job-results/latest
-                                  rm -rf "Functional/"
-                                  mkdir "Functional/"
-                                  # compress those potentially huge DAOS logs
-                                  if daos_logs=$(ls install/lib/daos/TESTING/ftest/avocado/job-results/*/daos_logs/*); then
-                                      lbzip2 $daos_logs
-                                  fi
-                                  arts="$arts$(ls *daos{,_agent}.log* 2>/dev/null)" && arts="$arts"$'\n'
-                                  arts="$arts$(ls -d install/lib/daos/TESTING/ftest/avocado/job-results/* 2>/dev/null)" && arts="$arts"$'\n'
-                                  if [ -n "$arts" ]; then
-                                      mv $(echo $arts | tr '\n' ' ') "Functional/"
-                                  fi'''
+                            functional_post_always()
                             archiveArtifacts artifacts: 'Functional/**'
                             junit 'Functional/*/results.xml, install/lib/daos/TESTING/ftest/*_results.xml'
                         }
