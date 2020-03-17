@@ -558,6 +558,8 @@ pipeline {
                                            cp -r . $OLDPWD/artifacts/leap15/)
                                           createrepo artifacts/leap15/
                                           rpm --qf %{version}-%{release}.%{arch} -qp artifacts/centos7/daos-server-*.x86_64.rpm > leap15-rpm-version
+                                          ls -l leap15-rpm-version || true
+                                          cat leap15-rpm-version || true
                                           cat $mockroot/result/{root,build}.log'''
                             stash name: 'leap15-rpm-version', includes: 'leap15-rpm-version'
                             publishToRepository product: 'daos',
