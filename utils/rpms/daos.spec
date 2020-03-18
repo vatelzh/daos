@@ -6,7 +6,7 @@
 
 Name:          daos
 Version:       1.1.0
-Release:       19%{?relval}%{?dist}
+Release:       20%{?relval}%{?dist}
 Summary:       DAOS Storage Engine
 
 License:       Apache
@@ -356,6 +356,9 @@ getent group daos_admins >/dev/null || groupadd -r daos_admins
 %{_libdir}/*.a
 
 %changelog
+* Mon Jun 01 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-20
+- Change fuse reqkuirement to fuse3
+
 * Tue May 26 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-19
 - Enable parallel building with _smp_mflags
 
@@ -407,7 +410,7 @@ getent group daos_admins >/dev/null || groupadd -r daos_admins
 - Remove scons_local as depedency
 
 * Tue Mar 03 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-3
-- bump up go minimum version to 1.12
+- Bump up go minimum version to 1.12
 
 * Thu Feb 20 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-2
 - daos-server requires daos-client (same version)
