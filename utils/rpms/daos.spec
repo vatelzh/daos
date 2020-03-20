@@ -51,6 +51,7 @@ BuildRequires: CUnit-devel
 BuildRequires: golang-bin >= 1.12
 BuildRequires: libipmctl-devel
 BuildRequires: python-devel python36-devel
+BuildRequires: Lmod
 %else
 %if (0%{?suse_version} >= 1315)
 # see src/client/dfs/SConscript for why we need /etc/os-release
@@ -66,7 +67,7 @@ BuildRequires: cunit-devel
 BuildRequires: go >= 1.12
 BuildRequires: ipmctl-devel
 BuildRequires: python-devel python3-devel
-BuildRequires: Modules
+BuildRequires: lua-lmod
 BuildRequires: systemd-rpm-macros
 %if 0%{?is_opensuse}
 %else
@@ -357,7 +358,8 @@ getent group daos_admins >/dev/null || groupadd -r daos_admins
 
 %changelog
 * Mon Jun 01 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-20
-- Change fuse reqkuirement to fuse3
+- Change fuse requirement to fuse3
+- Use Lmod for MPI module loading
 
 * Tue May 26 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-19
 - Enable parallel building with _smp_mflags
