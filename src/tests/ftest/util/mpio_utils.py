@@ -56,16 +56,18 @@ class MpioUtils():
 
         try:
             # checking mpich install
-            cmd = '''/usr/bin/ssh {} "set -x; export MODULEPATH=/usr/share/modules
-                   for mod in mpi/mpich-x86_64 gnu-mpich; do
-                       if module avail $mod; then
-                           module load $mod
-                           echo "Loaded $mod"
-                           break
-                       fi
-                   dpme
-                   command -v mpichversion"'''.format(
-                       hostlist[0]).rstrip()[:-len('bin/mpichversion')]
+            cmd = '''/usr/bin/ssh {} "set -x
+                                      export MODULEPATH=/usr/share/modules
+                                      for mod in mpi/mpich-x86_64 gnu-mpich; do
+                                          if module avail $mod; then
+                                              module load $mod
+                                              echo "Loaded $mod"
+                                              break
+                                          fi
+                                      dpme
+                                      command -v mpichversion"'''.format(
+                                          hostlist[0]).rstrip()[:-len(
+                                              'bin/mpichversion')]
             result = run_command(cmd)
             self.mpichinstall = \
                 result.stdout.rstrip()[:-len('bin/mpichversion')]
