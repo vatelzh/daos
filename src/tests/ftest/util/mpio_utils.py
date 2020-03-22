@@ -64,7 +64,7 @@ class MpioUtils():
                                               echo "Loaded $mod"
                                               break
                                           fi
-                                      dpme
+                                      dome
                                       command -v mpichversion"'''.format(
                                           hostlist[0]).rstrip()[:-len(
                                               'bin/mpichversion')]
