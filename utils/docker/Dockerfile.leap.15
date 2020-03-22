@@ -61,8 +61,8 @@ RUN zypper --non-interactive --no-gpg-checks refresh; \
            readline-devel sg3_utils which yasm                        \
            python-devel python3-devel valgrind-devel hwloc-devel      \
            openmpi3-devel Modules man fuse3-devel
-RUN zypper --non-interactive rm Modules; \
-    zypper --non-interactive install -f lua-lmod
+RUN zypper --non-interactive rm Modules;                                                                                                                                                  \
+    zypper --non-interactive install https://build.hpdd.intel.com/job/daos-stack/job/lua-lmod/job/PR-1/lastSuccessfulBuild/artifact/artifacts/leap15/lua-lmod-8.2.5-lp152.1.01.x86_64.rpm
 
 RUN update-ca-certificates;    \
     pip install --upgrade pip; \
