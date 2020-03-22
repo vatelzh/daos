@@ -175,7 +175,7 @@ def functional_rpms = "openmpi3 hwloc ndctl " +
                       "testmpio-cart-4-daos-0 fio"
 // need to exclude openmpi until we remove it from the repo
 def el7_functional_rpms  = "--exclude openmpi " + functional_rpms + " mpi4py-tests-cart-4-daos-0"
-def leap15_functional_rpms  = functional_rpms + ' lua-lmod mpich-3.3-lp151.46.2'
+def leap15_functional_rpms  = functional_rpms + ' lua-lmod mpich-3.3-5'
 
 
 def rpm_test_pre = '''if git show -s --format=%B | grep "^Skip-test: true"; then
