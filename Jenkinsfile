@@ -820,6 +820,7 @@ pipeline {
                     when {
                         beforeAgent true
                         allOf {
+                            expression { false }  // disable until we get lmod figured out
                             not { branch 'weekly-testing' }
                             not { environment name: 'CHANGE_TARGET', value: 'weekly-testing' }
                             expression { ! quickbuild() }
