@@ -612,6 +612,7 @@ pipeline {
                         }
                     }
                     steps {
+                        sh 'env | sort'
                         sconsBuild clean: "_build.external${arch}",
                                    parallel_build: parallel_build(),
                                    failure_artifacts: 'config.log-centos7-gcc'
