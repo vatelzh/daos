@@ -1414,8 +1414,7 @@ pipeline {
                                        node_count: 9,
                                        profile: 'daos_ci',
                                        distro: 'opensuse15',
-                                       snapshot: true,
-                                       inst_repos: leap15_daos_repos,
+                                       inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
@@ -1470,12 +1469,12 @@ pipeline {
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 3,
                                        profile: 'daos_ci',
-                                       distro: 'el7',
-                                       inst_repos: el7_daos_repos(),
-                                       inst_rpms: get_daos_packages('centos7') + ' ' +
+                                       distro: 'opensuse15',
+                                       inst_repos: leap15_daos_repos(),
+                                       inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
-                                                  el7_functional_rpms
-                        runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
+                                                  leap15_functional_rpms
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-small',
                                           test_tag: 'pr,hw,small',
@@ -1527,12 +1526,12 @@ pipeline {
                         provisionNodes NODELIST: env.NODELIST,
                                        node_count: 5,
                                        profile: 'daos_ci',
-                                       distro: 'el7',
-                                       inst_repos: el7_daos_repos(),
-                                       inst_rpms: get_daos_packages('centos7') + ' ' +
+                                       distro: 'opensuse15',
+                                       inst_repos: leap15_daos_repos(),
+                                       inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   ' cart-' + env.CART_COMMIT + ' ' +
-                                                  el7_functional_rpms
-                        runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
+                                                  leap15_functional_rpms
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-medium',
                                           test_tag: 'pr,hw,medium,ib2',

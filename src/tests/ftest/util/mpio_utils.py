@@ -57,7 +57,7 @@ class MpioUtils():
         try:
             # checking mpich install
             cmd = '''/usr/bin/ssh {} "set -x
-                                      export MODULEPATH=/usr/share/modules
+                                      export MODULEPATH=/usr/share/modules:/etc/modulefiles
                                       for mod in mpi/mpich-x86_64 gnu-mpich; do
                                           if module is-avail $mod; then
                                               module load $mod
