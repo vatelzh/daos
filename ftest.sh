@@ -203,6 +203,10 @@ $NFS_SERVER:$PWD $DAOS_BASE nfs defaults,vers=3 0 0 # DAOS_BASE # added by ftest
 .
 wq
 EOF
+    # work-around DCO-9102
+    ip addr ls dev eth0 | 
+        sed -n -e '/10\.8\.1\./d' -e 's/^    inet \(.*\)\/.*/\1/p' |
+        xargs -ri ip addr del {} dev eth0
     if ! mount \\\"$DAOS_BASE\\\"; then
         ip addr ls || ifconfig -a || true
         exit 1
