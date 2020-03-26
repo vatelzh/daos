@@ -203,7 +203,10 @@ $NFS_SERVER:$PWD $DAOS_BASE nfs defaults,vers=3 0 0 # DAOS_BASE # added by ftest
 .
 wq
 EOF
-    mount \\\"$DAOS_BASE\\\"
+    if ! mount \\\"$DAOS_BASE\\\"; then
+        ip addr ls || ifconfig -a || true
+        exit 1
+    fi
 fi\"
 
 if ! $TEST_RPMS; then
