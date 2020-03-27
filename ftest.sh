@@ -204,15 +204,18 @@ $NFS_SERVER:$PWD $DAOS_BASE nfs defaults,vers=3 0 0 # DAOS_BASE # added by ftest
 wq
 EOF
     # work-around DCO-9102
+    if [ -f /etc/sysconfig/network/ifcfg-eth0 ]; then
+        cat /etc/sysconfig/network/ifcfg-eth0 || true
+    fi
     ip addr ls || ifconfig -a || true
     ip addr ls dev eth0 | 
-      sed -n -e 's/^    inet \(.*\)\/\([0-9]*\) .*/\1 \2/p' |
+      sed -n -e 's/^  *inet \(.*\)\/\([0-9]*\) .*/\1 \2/p' |
       while read addr bits; do
-          if [ $bits = 32 ]; then
-              ip addr add $addr/16 dev eth0
-              ip addr del $addr/32 dev eth0
+          if [ \\\$bits = 32 ]; then
+              ip addr add \\\$addr/16 dev eth0
+              ip addr del \\\$addr/32 dev eth0
           else
-              ip addr del $addr/$bits dev eth0
+              ip addr del \\\$addr/\\\$bits dev eth0
           fi
       done
     ip addr ls || ifconfig -a || true
