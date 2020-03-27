@@ -204,13 +204,19 @@ $NFS_SERVER:$PWD $DAOS_BASE nfs defaults,vers=3 0 0 # DAOS_BASE # added by ftest
 wq
 EOF
     # work-around DCO-9102
+    ip addr ls || ifconfig -a || true
     ip addr ls dev eth0 | 
-        sed -n -e 's/^    inet \(.*\)\/32.*/\1/p' |
-        xargs -ri ip addr add {}/16 dev eth0\; ip addr del {}/32 dev eth0
-    if ! mount \\\"$DAOS_BASE\\\"; then
-        ip addr ls || ifconfig -a || true
-        exit 1
-    fi
+      sed -n -e 's/^    inet \(.*\)\/\([0-9]*\) .*/\1 \2/p' |
+      while read addr bits; do
+          if [ $bits = 32 ]; then
+              ip addr add $addr/16 dev eth0
+              ip addr del $addr/32 dev eth0
+          else
+              ip addr del $addr/$bits dev eth0
+          fi
+      done
+    ip addr ls || ifconfig -a || true
+    mount \\\"$DAOS_BASE\\\"
 fi\"
 
 if ! $TEST_RPMS; then
