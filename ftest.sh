@@ -210,22 +210,21 @@ EOF
     ip addr ls || ifconfig -a || true
     plumbed=false
     unplumb=()
-    ip addr ls dev eth0 | 
-      sed -n -e 's/^  *inet \(.*\)\/\([0-9]*\) .*/\1 \2/p' |
-      while read addr bits; do
-          if [ \\\$bits = 32 ]; then
-              ip addr add \\\$addr/16 dev eth0
-              ip addr del \\\$addr/32 dev eth0
-              plumbed=true
-          else
-              unplumb+=(\\\"\\\$addr/\\\$bits\\\")
-          fi
-      done
-      if \\\$plumbed; then
-          for i in \\\${unplumb[@]}; do
-              ip addr del \\\$i dev eth0
-          done
-      fi
+    while read addr bits; do
+        if [ \\\$bits = 32 ]; then
+            ip addr add \\\$addr/16 dev eth0
+            ip addr del \\\$addr/32 dev eth0
+            plumbed=true
+        else
+            unplumb+=(\\\$addr/\\\$bits)
+        fi
+    done < <(ip addr ls dev eth0 | 
+             sed -n -e 's/^  *inet \(.*\)\/\([0-9]*\) .*/\1 \2/p')
+    if \\\$plumbed; then
+        for i in \\\${unplumb[@]}; do
+            ip addr del \\\$i dev eth0
+        done
+    fi
     ip addr ls || ifconfig -a || true
     mount \\\"$DAOS_BASE\\\"
 fi\"
