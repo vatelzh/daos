@@ -205,8 +205,8 @@ wq
 EOF
     # work-around DCO-9102
     ip addr ls dev eth0 | 
-        sed -n -e '/10\.8\.[1-2]\./d' -e 's/^    inet \(.*\)\/.*/\1/p' |
-        xargs -ri ip addr del {} dev eth0
+        sed -n -e 's/^    inet \(.*\)\/32.*/\1/p' |
+        xargs -ri ip addr add {}/16 dev eth0\; ip addr del {}/32 dev eth0
     if ! mount \\\"$DAOS_BASE\\\"; then
         ip addr ls || ifconfig -a || true
         exit 1
