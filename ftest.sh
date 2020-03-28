@@ -212,7 +212,9 @@ EOF
     unplumb=()
     while read addr bits; do
         if [ \\\$bits = 32 ]; then
-            ip addr add \\\$addr/16 dev eth0
+            if ! ip addr add \\\$addr/16 dev eth0; then
+                echo \\\"ip addr add returned \\\${PIPELINE_STATUS[0]}\\\"
+            fi
             ip addr del \\\$addr/32 dev eth0
             plumbed=true
         else
