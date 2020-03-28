@@ -207,15 +207,16 @@ EOF
     if [ -f /etc/sysconfig/network/ifcfg-eth0 ]; then
         cat /etc/sysconfig/network/ifcfg-eth0 || true
     fi
+    (
     ip addr ls || ifconfig -a || true
     plumbed=false
     unplumb=()
     while read addr bits; do
         if [ \\\$bits = 32 ]; then
-            if ! ip addr add \\\$addr/16 dev eth0; then
+            if ! echo ip addr add \\\$addr/16 dev eth0; then
                 echo \\\"ip addr add returned \\\${PIPELINE_STATUS[0]}\\\"
             fi
-            ip addr del \\\$addr/32 dev eth0
+            echo ip addr del \\\$addr/32 dev eth0
             plumbed=true
         else
             unplumb+=(\\\$addr/\\\$bits)
@@ -224,10 +225,11 @@ EOF
              sed -n -e 's/^  *inet \(.*\)\/\([0-9]*\) .*/\1 \2/p')
     if \\\$plumbed; then
         for i in \\\${unplumb[@]}; do
-            ip addr del \\\$i dev eth0
+            echo ip addr del \\\$i dev eth0
         done
     fi
     ip addr ls || ifconfig -a || true
+    ) 2>&1 | tee /tmp/fix-interface.debug
     mount \\\"$DAOS_BASE\\\"
 fi\"
 
