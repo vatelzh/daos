@@ -1463,7 +1463,7 @@ pipeline {
                     }
                     agent {
                         // 2 node cluster with 1 IB/node + 1 test control node
-                        label 'ci_nvme3'
+                        label 'tci_nvme3'
                     }
                     steps {
                         provisionNodes NODELIST: env.NODELIST,
@@ -1520,7 +1520,7 @@ pipeline {
                     }
                     agent {
                         // 4 node cluster with 2 IB/node + 1 test control node
-                        label 'ci_nvme5'
+                        label 'tci_nvme5'
                     }
                     steps {
                         provisionNodes NODELIST: env.NODELIST,
@@ -1577,7 +1577,7 @@ pipeline {
                     }
                     agent {
                         // 8+ node cluster with 1 IB/node + 1 test control node
-                        label 'ci_nvme9'
+                        label 'tci_nvme9'
                     }
                     steps {
                         provisionNodes NODELIST: env.NODELIST,
@@ -1634,7 +1634,7 @@ pipeline {
                     }
                     agent {
                         // 8+ node cluster with 1 IB/node + 1 test control node
-                        label 'ci_nvme9'
+                        label 'tci_nvme9'
                     }
                     steps {
                         provisionNodes NODELIST: env.NODELIST,
