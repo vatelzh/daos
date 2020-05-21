@@ -1101,7 +1101,8 @@ obj_local_rw(crt_rpc_t *rpc, struct ds_cont_hdl *cont_hdl,
 
 		rc = vos_fetch_begin(cont->sc_hdl, orw->orw_oid, orw->orw_epoch,
 				     orw->orw_api_flags | VOS_OF_USE_TIMESTAMPS,
-				     dkey, orw->orw_nr, iods, size_fetch, &ioh);
+				     dkey, orw->orw_nr, iods, size_fetch, &ioh,
+				     dth);
 		if (rc) {
 			D_CDEBUG(rc == -DER_INPROGRESS, DB_IO, DLOG_ERR,
 				 "Fetch begin for "DF_UOID" failed: "DF_RC"\n",
@@ -1446,7 +1447,7 @@ ds_obj_tgt_update_handler(crt_rpc_t *rpc)
 	}
 
 	rc = dtx_begin(&orw->orw_dti, &orw->orw_oid, ioc.ioc_vos_coh,
-		       orw->orw_epoch, orw->orw_dkey_hash,
+		       orw->orw_epoch, false, orw->orw_dkey_hash,
 		       orw->orw_dti_cos.ca_arrays, orw->orw_dti_cos.ca_count,
 		       orw->orw_map_ver, DAOS_INTENT_UPDATE, &dth);
 	if (rc != 0) {
@@ -1522,6 +1523,7 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 	uint32_t			flags = 0;
 	uint32_t			opc = opc_get(rpc->cr_opc);
 	struct obj_ec_split_req		*split_req = NULL;
+	bool				epoch_uncertain = true;
 	int				rc;
 
 	D_ASSERT(orw != NULL);
@@ -1545,17 +1547,36 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 
 	if (orw->orw_epoch == DAOS_EPOCH_MAX || orw->orw_epoch == 0) {
 		orw->orw_epoch = crt_hlc_get();
+		epoch_uncertain = false;
 		D_DEBUG(DB_IO, "overwrite epoch "DF_U64"\n", orw->orw_epoch);
 	}
 
 	if (obj_rpc_is_fetch(rpc)) {
+		struct dtx_handle	*dthp = NULL;
+		struct dtx_handle	 dth;
+
 		if (orw->orw_flags & ORF_CSUM_REPORT) {
 			obj_log_csum_err();
 			D_GOTO(out, rc = -DER_CSUM);
 		}
 
+		if (!daos_is_zero_dti(&orw->orw_dti)) {
+			rc = dtx_begin(&orw->orw_dti, &orw->orw_oid,
+				       ioc.ioc_vos_coh, orw->orw_epoch,
+				       epoch_uncertain, orw->orw_dkey_hash,
+				       orw->orw_dti_cos.ca_arrays,
+				       orw->orw_dti_cos.ca_count,
+				       orw->orw_map_ver, DAOS_INTENT_DEFAULT,
+				       &dth);
+			D_ASSERTF(rc == 0, "%d\n", rc);
+			dthp = &dth;
+		}
+
 		rc = obj_local_rw(rpc, ioc.ioc_coh, ioc.ioc_coc,
-				  NULL, NULL, NULL, NULL);
+				  NULL, NULL, NULL, dthp);
+
+		if (dthp != NULL)
+			rc = dtx_end(dthp, ioc.ioc_coh, ioc.ioc_coc, rc);
 		D_GOTO(out, rc);
 	} else if (orw->orw_iod_array.oia_oiods != NULL) {
 		rc = obj_ec_rw_req_split(orw, &split_req);
@@ -1578,6 +1599,7 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 		if (rc == 0) {
 			flags |= ORF_RESEND;
 			orw->orw_epoch = tmp;
+			epoch_uncertain = false;
 		} else if (rc == -DER_NONEXIST) {
 			rc = 0;
 		} else {
@@ -1603,9 +1625,9 @@ renew:
 	 * the RPC to other replicas.
 	 */
 	rc = dtx_leader_begin(&orw->orw_dti, &orw->orw_oid, ioc.ioc_vos_coh,
-			      orw->orw_epoch, orw->orw_dkey_hash,
-			      orw->orw_map_ver, DAOS_INTENT_UPDATE,
-			      orw->orw_shard_tgts.ca_arrays,
+			      orw->orw_epoch, epoch_uncertain,
+			      orw->orw_dkey_hash, orw->orw_map_ver,
+			      DAOS_INTENT_UPDATE, orw->orw_shard_tgts.ca_arrays,
 			      orw->orw_shard_tgts.ca_count, &dlh);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for update "DF_RC".\n",
@@ -2069,7 +2091,7 @@ ds_obj_tgt_punch_handler(crt_rpc_t *rpc)
 
 	/* Start the local transaction */
 	rc = dtx_begin(&opi->opi_dti, &opi->opi_oid, ioc.ioc_vos_coh,
-		       opi->opi_epoch, opi->opi_dkey_hash,
+		       opi->opi_epoch, false, opi->opi_dkey_hash,
 		       opi->opi_dti_cos.ca_arrays, opi->opi_dti_cos.ca_count,
 		       opi->opi_map_ver, DAOS_INTENT_PUNCH, &dth);
 	if (rc != 0) {
@@ -2132,6 +2154,7 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 	struct ds_obj_exec_arg		exec_arg = { 0 };
 	struct obj_io_context		ioc;
 	uint32_t			flags = 0;
+	bool				epoch_uncertain = true;
 	int				rc;
 
 	opi = crt_req_get(rpc);
@@ -2165,6 +2188,7 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 
 	if (opi->opi_epoch == DAOS_EPOCH_MAX || opi->opi_epoch == 0) {
 		opi->opi_epoch = crt_hlc_get();
+		epoch_uncertain = false;
 		D_DEBUG(DB_IO, "overwrite epoch "DF_U64"\n", opi->opi_epoch);
 	}
 
@@ -2192,6 +2216,7 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 
 		if (rc == 0) {
 			opi->opi_epoch = tmp;
+			epoch_uncertain = false;
 			flags |= ORF_RESEND;
 		} else if (rc == -DER_NONEXIST) {
 			rc = 0;
@@ -2217,9 +2242,9 @@ renew:
 	 * the RPC to other replicas.
 	 */
 	rc = dtx_leader_begin(&opi->opi_dti, &opi->opi_oid, ioc.ioc_vos_coh,
-			      opi->opi_epoch, opi->opi_dkey_hash,
-			      opi->opi_map_ver, DAOS_INTENT_PUNCH,
-			      opi->opi_shard_tgts.ca_arrays,
+			      opi->opi_epoch, epoch_uncertain,
+			      opi->opi_dkey_hash, opi->opi_map_ver,
+			      DAOS_INTENT_PUNCH, opi->opi_shard_tgts.ca_arrays,
 			      opi->opi_shard_tgts.ca_count, &dlh);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for punch "DF_RC".\n",

@@ -483,7 +483,7 @@ performs all operations using its epoch.
 
 The MVCC rules ensure that transactions execute as if they are serialized in
 their epoch order while complying with external consistency, as long as the
-system clock offsets are always within the expected maximal system clock offset
+system clock offsets are always within the expected maximum system clock offset
 (epsilon). For convenience, the rules classify the I/O operations into reads
 and writes:
 
@@ -513,7 +513,7 @@ A read at epoch e follows these rules:
 
     // Epoch uncertainty check
     if e is uncertain
-        if there is any overlapping, unaborted write in (e, e + epsilon]
+        if there is any overlapping, unaborted write in (e, e_orig + epsilon]
             reject
 
     find the highest overlapping, unaborted write in [0, e]
@@ -531,7 +531,7 @@ A write at epoch e follows these rules:
 
     // Epoch uncertainty check
     if e is uncertain
-        if there is any overlapping, unaborted write in (e, e + epsilon]
+        if there is any overlapping, unaborted write in (e, e_orig + epsilon]
             reject
 
     // Read timestamp check

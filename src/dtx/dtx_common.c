@@ -205,19 +205,46 @@ check:
 	}
 }
 
+/* Return the epoch uncertainty upper bound. */
+static daos_epoch_t
+dtx_epoch_bound(daos_epoch_t epoch, daos_epoch_t epoch_orig, bool uncertain)
+{
+	daos_epoch_t limit;
+
+	if (!uncertain)
+		/*
+		 * We are told that the epoch has no uncertainty, even if it's
+		 * still within the potential uncertainty window.
+		 */
+		return epoch;
+
+	limit = epoch_orig + crt_hlc_epsilon_get();
+	if (epoch >= limit)
+		/*
+		 * The epoch is already out of the potential uncertainty
+		 * window.
+		 */
+		return epoch;
+
+	return limit;
+}
+
 /**
  * Init local dth handle.
  */
 static void
 dtx_handle_init(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
-		daos_epoch_t epoch, uint64_t dkey_hash, uint32_t pm_ver,
-		uint32_t intent, struct dtx_id *dti_cos, int dti_cos_count,
-		bool leader, bool solo, struct dtx_handle *dth)
+		daos_epoch_t epoch, bool epoch_uncertain, uint64_t dkey_hash,
+		uint32_t pm_ver, uint32_t intent, struct dtx_id *dti_cos,
+		int dti_cos_count, bool leader, bool solo,
+		struct dtx_handle *dth)
 {
 	dth->dth_xid = *dti;
 	dth->dth_oid = *oid;
 	dth->dth_coh = coh;
 	dth->dth_epoch = epoch;
+	dth->dth_epoch_bound = dtx_epoch_bound(epoch, dti->dti_hlc,
+					       epoch_uncertain);
 	D_INIT_LIST_HEAD(&dth->dth_shares);
 	dth->dth_dkey_hash = dkey_hash;
 	dth->dth_ver = pm_ver;
@@ -247,6 +274,8 @@ dtx_handle_init(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
  * \param oid		[IN]	The target object (shard) ID.
  * \param coh		[IN]	Container open handle.
  * \param epoch		[IN]	Epoch for the DTX.
+ * \param epoch_uncertain
+ *			[IN]	Epoch is uncertain.
  * \param dkey_hash	[IN]	Hash of the dkey to be modified if applicable.
  * \param tgts		[IN]	targets for distribute transaction.
  * \param tgts_cnt	[IN]	number of targets.
@@ -258,9 +287,9 @@ dtx_handle_init(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
  */
 int
 dtx_leader_begin(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
-		 daos_epoch_t epoch, uint64_t dkey_hash, uint32_t pm_ver,
-		 uint32_t intent, struct daos_shard_tgt *tgts, int tgts_cnt,
-		 struct dtx_leader_handle *dlh)
+		 daos_epoch_t epoch, bool epoch_uncertain, uint64_t dkey_hash,
+		 uint32_t pm_ver, uint32_t intent, struct daos_shard_tgt *tgts,
+		 int tgts_cnt, struct dtx_leader_handle *dlh)
 {
 	struct dtx_handle	*dth = &dlh->dlh_handle;
 	struct dtx_id		*dti_cos = NULL;
@@ -304,8 +333,8 @@ dtx_leader_begin(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
 	}
 
 init:
-	dtx_handle_init(dti, oid, coh, epoch, dkey_hash, pm_ver, intent,
-			dti_cos, dti_cos_count, true,
+	dtx_handle_init(dti, oid, coh, epoch, epoch_uncertain, dkey_hash,
+			pm_ver, intent, dti_cos, dti_cos_count, true,
 			tgts_cnt == 0 ? true : false, dth);
 
 	D_DEBUG(DB_TRACE, "Start DTX "DF_DTI" for object "DF_OID
@@ -457,11 +486,13 @@ out:
  * \param oid		[IN]	The target object (shard) ID.
  * \param coh		[IN]	Container open handle.
  * \param epoch		[IN]	Epoch for the DTX.
+ * \param epoch_uncertain
+ *			[IN]	Epoch is uncertain.
  * \param dkey_hash	[IN]	Hash of the dkey to be modified if applicable.
  * \param dti_cos	[IN,OUT]The DTX array to be committed because of shared.
  * \param dti_cos_count [IN,OUT]The @dti_cos array size.
  * \param pm_ver	[IN]	Pool map version for the DTX.
- * \param intent	[IN]	The intent of related modification.
+ * \param intent	[IN]	The intent of related operation(s).
  * \param leader	[IN]	The target (to be modified) is leader or not.
  * \param dth		[OUT]	Pointer to the DTX handle.
  *
@@ -469,15 +500,16 @@ out:
  */
 int
 dtx_begin(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
-	  daos_epoch_t epoch, uint64_t dkey_hash, struct dtx_id *dti_cos,
-	  int dti_cos_cnt, uint32_t pm_ver, uint32_t intent,
-	  struct dtx_handle *dth)
+	  daos_epoch_t epoch, bool epoch_uncertain, uint64_t dkey_hash,
+	  struct dtx_id *dti_cos, int dti_cos_cnt, uint32_t pm_ver,
+	  uint32_t intent, struct dtx_handle *dth)
 {
 	if (dth == NULL || daos_is_zero_dti(dti))
 		return 0;
 
-	dtx_handle_init(dti, oid, coh, epoch, dkey_hash, pm_ver, intent,
-			dti_cos, dti_cos_cnt, false, false, dth);
+	dtx_handle_init(dti, oid, coh, epoch, epoch_uncertain, dkey_hash,
+			pm_ver, intent, dti_cos, dti_cos_cnt, false, false,
+			dth);
 
 	D_DEBUG(DB_TRACE, "Start the DTX "DF_DTI" for object "DF_OID
 		" ver %u, dkey %llu, dti_cos_count %d, intent %s\n",

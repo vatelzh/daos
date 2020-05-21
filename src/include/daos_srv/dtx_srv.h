@@ -55,6 +55,11 @@ struct dtx_handle {
 	daos_handle_t			 dth_coh;
 	/** The epoch# for the DTX. */
 	daos_epoch_t			 dth_epoch;
+	/**
+	 * The upper bound of the epoch uncertainty. dth_epoch_bound ==
+	 * dth_epoch means that dth_epoch has no uncertainty.
+	 */
+	daos_epoch_t			 dth_epoch_bound;
 	/* The generation when the DTX is handled on the server. */
 	uint64_t			 dth_gen;
 	/** The {obj/dkey/akey}-tree records that are created
@@ -134,9 +139,9 @@ enum dtx_status {
 
 int
 dtx_leader_begin(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
-		 daos_epoch_t epoch, uint64_t dkey_hash, uint32_t pm_ver,
-		 uint32_t intent, struct daos_shard_tgt *tgts, int tgts_cnt,
-		 struct dtx_leader_handle *dlh);
+		 daos_epoch_t epoch, bool epoch_uncertain, uint64_t dkey_hash,
+		 uint32_t pm_ver, uint32_t intent, struct daos_shard_tgt *tgts,
+		 int tgts_cnt, struct dtx_leader_handle *dlh);
 int
 dtx_leader_end(struct dtx_leader_handle *dlh, struct ds_cont_child *cont,
 	       int result);
@@ -150,9 +155,9 @@ int dtx_resync(daos_handle_t po_hdl, uuid_t po_uuid, uuid_t co_uuid,
 	       uint32_t ver, bool block);
 int
 dtx_begin(struct dtx_id *dti, daos_unit_oid_t *oid, daos_handle_t coh,
-	  daos_epoch_t epoch, uint64_t dkey_hash, struct dtx_id *dti_cos,
-	  int dti_cos_cnt, uint32_t pm_ver, uint32_t intent,
-	  struct dtx_handle *dth);
+	  daos_epoch_t epoch, bool uncertain, uint64_t dkey_hash,
+	  struct dtx_id *dti_cos, int dti_cos_cnt, uint32_t pm_ver,
+	  uint32_t intent, struct dtx_handle *dth);
 int
 dtx_end(struct dtx_handle *dth, struct ds_cont_hdl *cont_hdl,
 	struct ds_cont_child *cont, int result);
