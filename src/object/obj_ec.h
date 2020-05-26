@@ -372,8 +372,8 @@ obj_ec_recx_cell_nr(daos_recx_t *recx, struct daos_oclass_attr *oca)
 	if (start > end)
 		return 1;
 	return (end - start) / obj_ec_cell_rec_nr(oca) +
-	       (recx->rx_idx % obj_ec_cell_rec_nr(oca)) +
-	       (recx_end % obj_ec_cell_rec_nr(oca));
+	       ((recx->rx_idx % obj_ec_cell_rec_nr(oca)) != 0) +
+	       ((recx_end % obj_ec_cell_rec_nr(oca)) != 0);
 }
 
 static inline int
@@ -425,7 +425,8 @@ obj_recx_ep_list_idx_parity2daos(uint32_t nr, struct daos_recx_ep_list *lists,
 		for (j = 0; j < list->re_nr; j++) {
 			recx = &list->re_items[j].re_recx;
 			D_ASSERT(recx->rx_idx % cell_rec_nr == 0);
-			stripe_nr = recx->rx_nr / cell_rec_nr;
+			stripe_nr = roundup(recx->rx_nr, cell_rec_nr) /
+				    cell_rec_nr;
 			D_ASSERT((recx->rx_idx & PARITY_INDICATOR) != 0);
 			recx->rx_idx &= ~PARITY_INDICATOR;
 			recx->rx_idx = obj_ec_idx_vos2daos(recx->rx_idx,
@@ -454,7 +455,7 @@ obj_iod_break(daos_iod_t *iod, struct daos_oclass_attr *oca)
 		D_ASSERT(stripe_nr >= 1);
 		if (stripe_nr == 1)
 			continue;
-		D_ALLOC_ARRAY(new_recx, stripe_nr);
+		D_ALLOC_ARRAY(new_recx, stripe_nr + iod->iod_nr - 1);
 		if (new_recx == NULL)
 			return -DER_NOMEM;
 		for (j = 0; j < i; j++)
