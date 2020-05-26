@@ -1552,31 +1552,24 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 	}
 
 	if (obj_rpc_is_fetch(rpc)) {
-		struct dtx_handle	*dthp = NULL;
-		struct dtx_handle	 dth;
+		struct dtx_handle dth = {0};
 
 		if (orw->orw_flags & ORF_CSUM_REPORT) {
 			obj_log_csum_err();
 			D_GOTO(out, rc = -DER_CSUM);
 		}
 
-		if (!daos_is_zero_dti(&orw->orw_dti)) {
-			rc = dtx_begin(&orw->orw_dti, &orw->orw_oid,
-				       ioc.ioc_vos_coh, orw->orw_epoch,
-				       epoch_uncertain, orw->orw_dkey_hash,
-				       orw->orw_dti_cos.ca_arrays,
-				       orw->orw_dti_cos.ca_count,
-				       orw->orw_map_ver, DAOS_INTENT_DEFAULT,
-				       &dth);
-			D_ASSERTF(rc == 0, "%d\n", rc);
-			dthp = &dth;
-		}
+		rc = dtx_begin(&orw->orw_dti, &orw->orw_oid, ioc.ioc_vos_coh,
+			       orw->orw_epoch, epoch_uncertain,
+			       orw->orw_dkey_hash, orw->orw_dti_cos.ca_arrays,
+			       orw->orw_dti_cos.ca_count, orw->orw_map_ver,
+			       DAOS_INTENT_DEFAULT, &dth);
+		D_ASSERTF(rc == 0, "%d\n", rc);
 
-		rc = obj_local_rw(rpc, ioc.ioc_coh, ioc.ioc_coc,
-				  NULL, NULL, NULL, dthp);
+		rc = obj_local_rw(rpc, ioc.ioc_coh, ioc.ioc_coc, NULL, NULL,
+				  NULL, &dth);
 
-		if (dthp != NULL)
-			rc = dtx_end(dthp, ioc.ioc_coh, ioc.ioc_coc, rc);
+		rc = dtx_end(&dth, ioc.ioc_coh, ioc.ioc_coc, rc);
 		D_GOTO(out, rc);
 	} else if (orw->orw_iod_array.oia_oiods != NULL) {
 		rc = obj_ec_rw_req_split(orw, &split_req);
@@ -1654,11 +1647,20 @@ out:
 	/* Stop the distribute transaction */
 	rc = dtx_leader_end(&dlh, ioc.ioc_coc, rc);
 	if (rc == -DER_TX_RESTART) {
-		/* Retry with newer epoch. */
-		orw->orw_epoch = crt_hlc_get();
-		flags &= ~ORF_RESEND;
-		memset(&dlh, 0, sizeof(dlh));
-		D_GOTO(renew, rc);
+		/*
+		 * If this is a standalone operation, which can only be a
+		 * standalone update currently, we can restart the internal
+		 * transaction right here. Otherwise, we have to defer the
+		 * restart to the RPC client.
+		 */
+		if (daos_is_zero_dti(&orw->orw_dti)) {
+			/* Retry with newer epoch. */
+			orw->orw_epoch = crt_hlc_get();
+			epoch_uncertain = false;
+			flags &= ~ORF_RESEND;
+			memset(&dlh, 0, sizeof(dlh));
+			D_GOTO(renew, rc);
+		}
 	} else if (rc == -DER_AGAIN) {
 		flags |= ORF_RESEND;
 		D_GOTO(again, rc);
