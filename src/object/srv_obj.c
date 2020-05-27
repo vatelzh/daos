@@ -1447,9 +1447,10 @@ ds_obj_tgt_update_handler(crt_rpc_t *rpc)
 	}
 
 	rc = dtx_begin(&orw->orw_dti, &orw->orw_oid, ioc.ioc_vos_coh,
-		       orw->orw_epoch, false, orw->orw_dkey_hash,
-		       orw->orw_dti_cos.ca_arrays, orw->orw_dti_cos.ca_count,
-		       orw->orw_map_ver, DAOS_INTENT_UPDATE, &dth);
+		       orw->orw_epoch, orw->orw_flags & ORF_EPOCH_UNCERTAIN,
+		       orw->orw_dkey_hash, orw->orw_dti_cos.ca_arrays,
+		       orw->orw_dti_cos.ca_count, orw->orw_map_ver,
+		       DAOS_INTENT_UPDATE, &dth);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for update "DF_RC".\n",
 			DP_UOID(orw->orw_oid), DP_RC(rc));
@@ -1523,7 +1524,6 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 	uint32_t			flags = 0;
 	uint32_t			opc = opc_get(rpc->cr_opc);
 	struct obj_ec_split_req		*split_req = NULL;
-	bool				epoch_uncertain = true;
 	int				rc;
 
 	D_ASSERT(orw != NULL);
@@ -1547,7 +1547,7 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 
 	if (orw->orw_epoch == DAOS_EPOCH_MAX || orw->orw_epoch == 0) {
 		orw->orw_epoch = crt_hlc_get();
-		epoch_uncertain = false;
+		orw->orw_flags &= ~ORF_EPOCH_UNCERTAIN;
 		D_DEBUG(DB_IO, "overwrite epoch "DF_U64"\n", orw->orw_epoch);
 	}
 
@@ -1560,7 +1560,8 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 		}
 
 		rc = dtx_begin(&orw->orw_dti, &orw->orw_oid, ioc.ioc_vos_coh,
-			       orw->orw_epoch, epoch_uncertain,
+			       orw->orw_epoch,
+			       orw->orw_flags & ORF_EPOCH_UNCERTAIN,
 			       orw->orw_dkey_hash, orw->orw_dti_cos.ca_arrays,
 			       orw->orw_dti_cos.ca_count, orw->orw_map_ver,
 			       DAOS_INTENT_DEFAULT, &dth);
@@ -1592,7 +1593,7 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 		if (rc == 0) {
 			flags |= ORF_RESEND;
 			orw->orw_epoch = tmp;
-			epoch_uncertain = false;
+			/* TODO: Also recover the epoch uncertainty. */
 		} else if (rc == -DER_NONEXIST) {
 			rc = 0;
 		} else {
@@ -1618,7 +1619,8 @@ renew:
 	 * the RPC to other replicas.
 	 */
 	rc = dtx_leader_begin(&orw->orw_dti, &orw->orw_oid, ioc.ioc_vos_coh,
-			      orw->orw_epoch, epoch_uncertain,
+			      orw->orw_epoch,
+			      orw->orw_flags & ORF_EPOCH_UNCERTAIN,
 			      orw->orw_dkey_hash, orw->orw_map_ver,
 			      DAOS_INTENT_UPDATE, orw->orw_shard_tgts.ca_arrays,
 			      orw->orw_shard_tgts.ca_count, &dlh);
@@ -1656,7 +1658,6 @@ out:
 		if (daos_is_zero_dti(&orw->orw_dti)) {
 			/* Retry with newer epoch. */
 			orw->orw_epoch = crt_hlc_get();
-			epoch_uncertain = false;
 			flags &= ~ORF_RESEND;
 			memset(&dlh, 0, sizeof(dlh));
 			D_GOTO(renew, rc);
@@ -2093,9 +2094,10 @@ ds_obj_tgt_punch_handler(crt_rpc_t *rpc)
 
 	/* Start the local transaction */
 	rc = dtx_begin(&opi->opi_dti, &opi->opi_oid, ioc.ioc_vos_coh,
-		       opi->opi_epoch, false, opi->opi_dkey_hash,
-		       opi->opi_dti_cos.ca_arrays, opi->opi_dti_cos.ca_count,
-		       opi->opi_map_ver, DAOS_INTENT_PUNCH, &dth);
+		       opi->opi_epoch, opi->opi_flags & ORF_EPOCH_UNCERTAIN,
+		       opi->opi_dkey_hash, opi->opi_dti_cos.ca_arrays,
+		       opi->opi_dti_cos.ca_count, opi->opi_map_ver,
+		       DAOS_INTENT_PUNCH, &dth);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for punch "DF_RC".\n",
 			DP_UOID(opi->opi_oid), DP_RC(rc));
@@ -2156,7 +2158,6 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 	struct ds_obj_exec_arg		exec_arg = { 0 };
 	struct obj_io_context		ioc;
 	uint32_t			flags = 0;
-	bool				epoch_uncertain = true;
 	int				rc;
 
 	opi = crt_req_get(rpc);
@@ -2190,7 +2191,7 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 
 	if (opi->opi_epoch == DAOS_EPOCH_MAX || opi->opi_epoch == 0) {
 		opi->opi_epoch = crt_hlc_get();
-		epoch_uncertain = false;
+		opi->opi_flags &= ~ORF_EPOCH_UNCERTAIN;
 		D_DEBUG(DB_IO, "overwrite epoch "DF_U64"\n", opi->opi_epoch);
 	}
 
@@ -2218,7 +2219,7 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 
 		if (rc == 0) {
 			opi->opi_epoch = tmp;
-			epoch_uncertain = false;
+			/* TODO: Also recovery the epoch uncertainty. */
 			flags |= ORF_RESEND;
 		} else if (rc == -DER_NONEXIST) {
 			rc = 0;
@@ -2244,7 +2245,8 @@ renew:
 	 * the RPC to other replicas.
 	 */
 	rc = dtx_leader_begin(&opi->opi_dti, &opi->opi_oid, ioc.ioc_vos_coh,
-			      opi->opi_epoch, epoch_uncertain,
+			      opi->opi_epoch,
+			      opi->opi_flags & ORF_EPOCH_UNCERTAIN,
 			      opi->opi_dkey_hash, opi->opi_map_ver,
 			      DAOS_INTENT_PUNCH, opi->opi_shard_tgts.ca_arrays,
 			      opi->opi_shard_tgts.ca_count, &dlh);
@@ -2271,11 +2273,18 @@ out:
 	/* Stop the distribute transaction */
 	rc = dtx_leader_end(&dlh, ioc.ioc_coc, rc);
 	if (rc == -DER_TX_RESTART) {
-		/* Retry with newer epoch. */
-		opi->opi_epoch = crt_hlc_get();
-		flags &= ~ORF_RESEND;
-		memset(&dlh, 0, sizeof(dlh));
-		D_GOTO(renew, rc);
+		/*
+		 * If this is a standalone punch, we can restart the internal
+		 * transaction right here. Otherwise, we have to defer the
+		 * restart to the RPC client.
+		 */
+		if (daos_is_zero_dti(&opi->opi_dti)) {
+			/* Retry with newer epoch. */
+			opi->opi_epoch = crt_hlc_get();
+			flags &= ~ORF_RESEND;
+			memset(&dlh, 0, sizeof(dlh));
+			D_GOTO(renew, rc);
+		}
 	} else if (rc == -DER_AGAIN) {
 		flags |= ORF_RESEND;
 		D_GOTO(again, rc);
