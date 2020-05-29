@@ -36,24 +36,24 @@
  */
 struct dtx_handle {
 	union {
+		struct dtx_entry	 dth_dte;
 		struct {
-			/** The identifier of the DTX */
-			struct dtx_id		dth_xid;
-			/** The identifier of the shard to be modified. */
-			daos_unit_oid_t		dth_oid;
+			/** The identifier of the DTX. */
+			struct dtx_id		 dth_xid;
+			/** Pool map version. */
+			uint32_t		 dth_ver;
+			/** Match dtx_entry::dte_refs. */
+			uint32_t		 dth_refs;
+			/** The DTX participants information. */
+			struct dtx_actors	*dth_actors;
 		};
-		struct dtx_entry		dth_dte;
 	};
 	/** The container handle */
 	daos_handle_t			 dth_coh;
 	/** The epoch# for the DTX. */
 	daos_epoch_t			 dth_epoch;
-	/* The hash of the dkey to be modified if applicable */
-	uint64_t			 dth_dkey_hash;
-	/** Pool map version. */
-	uint32_t			 dth_ver;
-	/** The intent of related modification. */
-	uint32_t			 dth_intent;
+	/** The identifier of the shard to be modified. */
+	daos_unit_oid_t			 dth_oid;
 
 	uint32_t			 dth_sync:1, /* commit synchronously. */
 					 /* Only one participator in the DTX. */
@@ -63,7 +63,9 @@ struct dtx_handle {
 					 /* Modified shared items: object/key */
 					 dth_modify_shared:1,
 					 /* The DTX entry is in active table. */
-					 dth_active:1;
+					 dth_active:1,
+					 /* Need to free dth_actors. */
+					 dth_free_actors:1;
 
 	/* The count the DTXs in the dth_dti_cos array. */
 	uint32_t			 dth_dti_cos_count;
@@ -73,8 +75,13 @@ struct dtx_handle {
 	void				*dth_ent;
 	/** The flags, see dtx_entry_flags. */
 	uint16_t			 dth_flags;
+
 	/** Modification sequence in the distributed transaction. */
 	uint16_t			 dth_op_seq;
+	/** The intent of related modification. */
+	uint32_t			 dth_intent;
+	/* The hash of the dkey to be modified if applicable */
+	uint64_t			 dth_dkey_hash;
 };
 
 /* Each sub transaction handle to manage each sub thandle */
@@ -125,7 +132,7 @@ dtx_leader_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 		 daos_epoch_t epoch, uint32_t pm_ver,
 		 daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
 		 struct daos_shard_tgt *tgts, int tgt_cnt,
-		 struct dtx_leader_handle *dlh);
+		 struct dtx_actors *actors, struct dtx_leader_handle *dlh);
 int
 dtx_leader_end(struct dtx_leader_handle *dlh, struct ds_cont_child *cont,
 	       int result);
@@ -139,7 +146,9 @@ int
 dtx_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 	  daos_epoch_t epoch, uint32_t pm_ver,
 	  daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
-	  struct dtx_id *dti_cos, int dti_cos_cnt, struct dtx_handle *dth);
+	  struct dtx_id *dti_cos, int dti_cos_cnt,
+	  struct daos_shard_tgt *tgts, int tgt_cnt, struct dtx_actors *actors,
+	  struct dtx_handle *dth);
 int
 dtx_end(struct dtx_handle *dth, struct ds_cont_child *cont, int result);
 
@@ -151,7 +160,7 @@ int dtx_batched_commit_register(struct ds_cont_child *cont);
 void dtx_batched_commit_deregister(struct ds_cont_child *cont);
 
 int dtx_obj_sync(uuid_t po_uuid, uuid_t co_uuid, struct ds_cont_child *cont,
-		 daos_unit_oid_t *oid, daos_epoch_t epoch, uint32_t map_ver);
+		 daos_unit_oid_t *oid, daos_epoch_t epoch);
 
 /**
  * Check whether the given DTX is resent one or not.
@@ -182,6 +191,13 @@ static inline uint64_t
 dtx_hlc_age2sec(uint64_t hlc)
 {
 	return (crt_hlc_get() - hlc) / NSEC_PER_SEC;
+}
+
+static inline void
+dtx_entry_put(struct dtx_entry *dte)
+{
+	D_FREE(dte->dte_actors);
+	D_FREE(dte);
 }
 
 struct dtx_scan_args {

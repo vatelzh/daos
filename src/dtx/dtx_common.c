@@ -87,7 +87,7 @@ dtx_aggregate(void *arg)
 }
 
 static inline void
-dtx_free_committable(struct dtx_entry *dtes)
+dtx_free_committable(struct dtx_entry **dtes)
 {
 	D_FREE(dtes);
 }
@@ -116,11 +116,11 @@ dtx_flush_on_deregister(struct dss_module_info *dmi,
 {
 	struct ds_cont_child	*cont = dbca->dbca_cont;
 	struct ds_pool_child	*pool = cont->sc_pool;
-	int			 rc;
+	int			 rc = 0;
 
 	D_ASSERT(dbca->dbca_deregistering != NULL);
 	do {
-		struct dtx_entry	*dtes = NULL;
+		struct dtx_entry	**dtes = NULL;
 
 		rc = dtx_fetch_committable(cont, DTX_THRESHOLD_COUNT,
 					   NULL, DAOS_EPOCH_MAX, &dtes);
@@ -128,7 +128,7 @@ dtx_flush_on_deregister(struct dss_module_info *dmi,
 			break;
 
 		rc = dtx_commit(pool->spc_uuid, cont->sc_uuid,
-				dtes, rc, pool->spc_map_version, true);
+				dtes, rc, true);
 		dtx_free_committable(dtes);
 	} while (rc >= 0);
 
@@ -153,10 +153,10 @@ dtx_batched_commit(void *arg)
 	struct dtx_batched_commit_args	*dbca;
 
 	while (1) {
-		struct ds_cont_child		*cont;
-		struct dtx_entry		*dtes = NULL;
-		struct dtx_stat			 stat = { 0 };
-		int				 rc;
+		struct dtx_entry		**dtes = NULL;
+		struct ds_cont_child		 *cont;
+		struct dtx_stat			  stat = { 0 };
+		int				  rc;
 
 		if (d_list_empty(&dmi->dmi_dtx_batched_list))
 			goto check;
@@ -180,8 +180,7 @@ dtx_batched_commit(void *arg)
 						   NULL, DAOS_EPOCH_MAX, &dtes);
 			if (rc > 0) {
 				rc = dtx_commit(cont->sc_pool->spc_uuid,
-					cont->sc_uuid, dtes, rc,
-					cont->sc_pool->spc_map_version, true);
+					cont->sc_uuid, dtes, rc, true);
 				dtx_free_committable(dtes);
 
 				if (dbca->dbca_deregistering) {
@@ -223,6 +222,46 @@ check:
 	}
 }
 
+/* For single RDG based DTX, parse DTX participants information
+ * from the client given dispatch targets information that does
+ * NOT contains the original leader information.
+ */
+static int
+dtx_gen_actors(struct daos_shard_tgt *tgts, int tgt_cnt,
+	       struct dtx_actors **p_actors)
+{
+	struct dtx_actors	*actors;
+	size_t			 size;
+	int			 i;
+	int			 j;
+
+	D_ASSERT(tgts != NULL);
+
+	size = sizeof(struct dtx_daos_target) * tgt_cnt;
+	D_ALLOC(actors, sizeof(*actors) + size);
+	if (actors == NULL)
+		return -DER_NOMEM;
+
+	for (i = 0, j = 0; i < tgt_cnt; i++) {
+		if (tgts[i].st_rank == TGTS_IGNORE)
+			continue;
+
+		actors->da_tgts[j++].ddt_id = tgts[i].st_tgt_id;
+	}
+
+	if (j == 0) {
+		D_FREE(actors);
+	} else {
+		actors->da_tgt_cnt = j;
+		actors->da_grp_cnt = 1;
+		actors->da_data_size = size;
+	}
+
+	*p_actors = actors;
+
+	return 0;
+}
+
 /**
  * Init local dth handle.
  */
@@ -231,31 +270,34 @@ dtx_handle_init(struct dtx_id *dti, daos_handle_t coh,
 		daos_epoch_t epoch,  uint32_t pm_ver,
 		daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
 		struct dtx_id *dti_cos, int dti_cos_count,
+		struct dtx_actors *actors, bool free_actors,
 		bool leader, bool solo, struct dtx_handle *dth)
 {
 	dth->dth_xid = *dti;
 	dth->dth_coh = coh;
 	dth->dth_epoch = epoch;
-	dth->dth_ver = pm_ver;
-
 	dth->dth_oid = *oid;
-	dth->dth_dkey_hash = dkey_hash;
-	dth->dth_intent = intent;
-
-	dth->dth_dti_cos = dti_cos;
-	dth->dth_dti_cos_count = dti_cos_count;
-	dth->dth_ent = NULL;
+	dth->dth_ver = pm_ver;
+	dth->dth_refs = 1;
+	dth->dth_actors = actors;
 
 	dth->dth_sync = 0;
 	dth->dth_solo = solo ? 1 : 0;
 	dth->dth_dti_cos_done = 0;
 	dth->dth_modify_shared = 0;
 	dth->dth_active = 0;
+	dth->dth_free_actors = free_actors ? 1 : 0;
 
+	dth->dth_dti_cos = dti_cos;
+	dth->dth_dti_cos_count = dti_cos_count;
+	dth->dth_ent = NULL;
 	dth->dth_flags = leader ? DTE_LEADER : 0;
 
 	/* Operation sequence starts from 1 instead of 0. */
 	dth->dth_op_seq = 1;
+
+	dth->dth_intent = intent;
+	dth->dth_dkey_hash = dkey_hash;
 }
 
 /**
@@ -273,6 +315,7 @@ dtx_handle_init(struct dtx_id *dti, daos_handle_t coh,
  * \param intent	[IN]	The intent of related modification.
  * \param tgts		[IN]	targets for distribute transaction.
  * \param tgt_cnt	[IN]	number of targets.
+ * \param actors	[IN]	DTX participants information.
  * \param dth		[OUT]	Pointer to the DTX handle.
  *
  * \return			Zero on success, negative value if error.
@@ -282,12 +325,27 @@ dtx_leader_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 		 daos_epoch_t epoch, uint32_t pm_ver,
 		 daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
 		 struct daos_shard_tgt *tgts, int tgt_cnt,
-		 struct dtx_leader_handle *dlh)
+		 struct dtx_actors *actors, struct dtx_leader_handle *dlh)
 {
 	struct dtx_handle	*dth = &dlh->dlh_handle;
 	struct dtx_id		*dti_cos = NULL;
 	int			 dti_cos_count = 0;
+	bool			 free_actors = false;
+	int			 rc = 0;
 	int			 i;
+
+	if (!daos_is_zero_dti(dti) && actors == NULL && tgt_cnt != 0) {
+		rc = dtx_gen_actors(tgts, tgt_cnt, &actors);
+		if (rc != 0)
+			return rc;
+
+		if (actors != NULL) {
+			free_actors = true;
+		} else {
+			tgt_cnt = 0;
+			tgts = NULL;
+		}
+	}
 
 	/* Single replica case. */
 	if (tgt_cnt == 0) {
@@ -321,6 +379,8 @@ dtx_leader_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 	dti_cos_count = dtx_list_cos(cont, oid, dkey_hash,
 				     DTX_THRESHOLD_COUNT, &dti_cos);
 	if (dti_cos_count < 0) {
+		if (free_actors)
+			D_FREE(actors);
 		D_FREE(dlh->dlh_subs);
 		return dti_cos_count;
 	}
@@ -328,13 +388,13 @@ dtx_leader_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 init:
 	dtx_handle_init(dti, cont->sc_hdl, epoch, pm_ver,
 			oid, dkey_hash, intent,
-			dti_cos, dti_cos_count, true,
+			dti_cos, dti_cos_count, actors, free_actors, true,
 			tgt_cnt == 0 ? true : false, dth);
 
-	D_DEBUG(DB_TRACE, "Start DTX "DF_DTI" for object "DF_OID
-		" ver %u, dkey %llu, dti_cos_count %d, intent %s\n",
-		DP_DTI(&dth->dth_xid), DP_OID(oid->id_pub), dth->dth_ver,
-		(unsigned long long)dth->dth_dkey_hash, dti_cos_count,
+	D_DEBUG(DB_TRACE, "Start DTX "DF_DTI" for object "DF_UOID
+		" ver %u, dkey %lu, dti_cos_count %d, intent %s\n",
+		DP_DTI(dti), DP_UOID(*oid), dth->dth_ver,
+		(unsigned long)dth->dth_dkey_hash, dti_cos_count,
 		intent == DAOS_INTENT_PUNCH ? "Punch" : "Update");
 
 	return 0;
@@ -369,6 +429,7 @@ dtx_leader_end(struct dtx_leader_handle *dlh, struct ds_cont_child *cont,
 	       int result)
 {
 	struct dtx_handle		*dth = &dlh->dlh_handle;
+	struct dtx_entry		*dte;
 	daos_epoch_t			 epoch = dth->dth_epoch;
 	int				 saved = result;
 	int				 rc = 0;
@@ -434,17 +495,57 @@ again:
 			dth->dth_sync = 1;
 		}
 
+		/* FIXME: For the DTX across multiple modification groups,
+		 *	  commit it synchronously. That will be changed in
+		 *	  next phase.
+		 */
+		if (dth->dth_actors->da_grp_cnt > 1)
+			dth->dth_sync = 1;
+
 		/* For synchronous DTX, do not add it into CoS cache, otherwise,
 		 * we may have no way to remove it from the cache.
 		 */
 		if (dth->dth_sync)
 			goto sync;
 
-		rc = dtx_add_cos(cont, &dth->dth_xid, &dth->dth_oid,
+		D_ALLOC_PTR(dte);
+		if (dte == NULL) {
+			dth->dth_sync = 1;
+			goto sync;
+		}
+
+		memcpy(dte, &dth->dth_dte, sizeof(*dte));
+		if (dth->dth_free_actors) {
+			/* Take over the actors that is craeted via
+			 * the dtx_gen_actors().
+			 */
+			dth->dth_free_actors = 0;
+		} else {
+			struct dtx_actors	*actors;
+			size_t			 size;
+
+			size = sizeof(*actors) + dth->dth_actors->da_data_size;
+			D_ALLOC(actors, size);
+			if (actors == NULL) {
+				D_FREE_PTR(dte);
+				dth->dth_sync = 1;
+				goto sync;
+			}
+
+			memcpy(actors, dth->dth_actors, size);
+			dte->dte_actors = actors;
+		}
+
+		/* Use the new created @dte instead of dth->dth_dte that will be
+		 * released after dtx_leader_end().
+		 */
+		rc = dtx_add_cos(cont, dte, &dth->dth_oid,
 				 dth->dth_dkey_hash, dth->dth_epoch,
 				 dth->dth_modify_shared ? DCF_SHARED : 0);
 		if (rc == 0)
 			vos_dtx_mark_committable(dth);
+		else
+			dtx_entry_put(dte);
 	}
 
 	if (rc == -DER_TX_RESTART) {
@@ -479,9 +580,9 @@ again:
 
 sync:
 	if (dth->dth_sync) {
+		dte = &dth->dth_dte;
 		rc = dtx_commit(cont->sc_pool->spc_uuid, cont->sc_uuid,
-				&dth->dth_dte, 1,
-				cont->sc_pool->spc_map_version, false);
+				&dte, 1, false);
 		if (rc != 0) {
 			D_ERROR(DF_UUID": Fail to sync commit DTX "DF_DTI
 				": "DF_RC"\n", DP_UUID(cont->sc_uuid),
@@ -492,16 +593,17 @@ sync:
 
 out:
 	if (!daos_is_zero_dti(&dth->dth_xid) && rc != -DER_AGAIN) {
-		if (result < 0 && dlh->dlh_sub_cnt > 0)
+		if (result < 0 && dlh->dlh_sub_cnt > 0) {
+			dte = &dth->dth_dte;
 			dtx_abort(cont->sc_pool->spc_uuid, cont->sc_uuid,
-				  dth->dth_epoch, &dth->dth_dte, 1,
-				  cont->sc_pool->spc_map_version);
+				  dth->dth_epoch, &dte, 1);
+		}
 
 		D_DEBUG(DB_TRACE,
-			"Stop the DTX "DF_DTI" ver %u, dkey %llu, intent %s, "
+			"Stop the DTX "DF_DTI" ver %u, dkey %lu, intent %s, "
 			"%s, %s participator(s): rc "DF_RC"\n",
 			DP_DTI(&dth->dth_xid), dth->dth_ver,
-			(unsigned long long)dth->dth_dkey_hash,
+			(unsigned long)dth->dth_dkey_hash,
 			dth->dth_intent == DAOS_INTENT_PUNCH ?
 			"Punch" : "Update", dth->dth_sync ? "sync" : "async",
 			dth->dth_solo ? "single" : "multiple", DP_RC(result));
@@ -531,10 +633,13 @@ out:
 	 * not executed related modification, the piggyback dth_dti_cos
 	 * still has been committed when dtx_end().
 	 */
-	if (result == -DER_AGAIN)
+	if (result == -DER_AGAIN) {
 		dlh->dlh_future = ABT_FUTURE_NULL;
-	else
+	} else {
+		if (dth->dth_free_actors)
+			D_FREE(dth->dth_actors);
 		D_FREE(dlh->dlh_subs);
+	}
 
 	return result;
 }
@@ -554,6 +659,9 @@ out:
  * \param intent	[IN]	The intent of related modification.
  * \param dti_cos	[IN]	The DTX array to be committed because of shared.
  * \param dti_cos_count [IN]	The @dti_cos array size.
+ * \param tgts		[IN]	targets for distribute transaction.
+ * \param tgt_cnt	[IN]	number of targets.
+ * \param actors	[IN]	DTX participants information.
  * \param dth		[OUT]	Pointer to the DTX handle.
  *
  * \return			Zero on success, negative value if error.
@@ -562,8 +670,12 @@ int
 dtx_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 	  daos_epoch_t epoch, uint32_t pm_ver,
 	  daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
-	  struct dtx_id *dti_cos, int dti_cos_cnt, struct dtx_handle *dth)
+	  struct dtx_id *dti_cos, int dti_cos_cnt, struct daos_shard_tgt *tgts,
+	  int tgt_cnt, struct dtx_actors *actors, struct dtx_handle *dth)
 {
+	bool	free_actors = false;
+	int	rc;
+
 	D_ASSERT(dth != NULL);
 
 	if (daos_is_zero_dti(dti)) {
@@ -571,14 +683,24 @@ dtx_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 		return 0;
 	}
 
+	if (actors == NULL && tgt_cnt != 0) {
+		rc = dtx_gen_actors(tgts, tgt_cnt, &actors);
+		if (rc != 0)
+			return rc;
+
+		if (actors != NULL)
+			free_actors = true;
+	}
+
 	dtx_handle_init(dti, cont->sc_hdl, epoch, pm_ver,
 			oid, dkey_hash, intent,
-			dti_cos, dti_cos_cnt, false, false, dth);
+			dti_cos, dti_cos_cnt, actors, free_actors, false,
+			false, dth);
 
-	D_DEBUG(DB_TRACE, "Start the DTX "DF_DTI" for object "DF_OID
-		" ver %u, dkey %llu, dti_cos_count %d, intent %s\n",
-		DP_DTI(&dth->dth_xid), DP_OID(oid->id_pub), dth->dth_ver,
-		(unsigned long long)dth->dth_dkey_hash, dti_cos_cnt,
+	D_DEBUG(DB_TRACE, "Start the DTX "DF_DTI" for object "DF_UOID
+		" ver %u, dkey %lu, dti_cos_count %d, intent %s\n",
+		DP_DTI(dti), DP_UOID(*oid), dth->dth_ver,
+		(unsigned long)dth->dth_dkey_hash, dti_cos_cnt,
 		intent == DAOS_INTENT_PUNCH ? "Punch" : "Update");
 
 	return 0;
@@ -614,13 +736,16 @@ dtx_end(struct dtx_handle *dth, struct ds_cont_child *cont, int result)
 	}
 
 	D_DEBUG(DB_TRACE,
-		"Stop the DTX "DF_DTI" ver %u, dkey %llu, intent %s, rc = %d\n",
+		"Stop the DTX "DF_DTI" ver %u, dkey %lu, intent %s, rc = %d\n",
 		DP_DTI(&dth->dth_xid), dth->dth_ver,
-		(unsigned long long)dth->dth_dkey_hash,
+		(unsigned long)dth->dth_dkey_hash,
 		dth->dth_intent == DAOS_INTENT_PUNCH ? "Punch" : "Update",
 		result);
 
 	D_ASSERTF(result <= 0, "unexpected return value %d\n", result);
+
+	if (dth->dth_free_actors)
+		D_FREE(dth->dth_actors);
 
 	return result;
 }
@@ -904,12 +1029,12 @@ out:
 
 int
 dtx_obj_sync(uuid_t po_uuid, uuid_t co_uuid, struct ds_cont_child *cont,
-	     daos_unit_oid_t *oid, daos_epoch_t epoch, uint32_t map_ver)
+	     daos_unit_oid_t *oid, daos_epoch_t epoch)
 {
 	int	rc = 0;
 
 	while (1) {
-		struct dtx_entry	*dtes = NULL;
+		struct dtx_entry	**dtes = NULL;
 
 		rc = dtx_fetch_committable(cont, DTX_THRESHOLD_COUNT, oid,
 					   epoch, &dtes);
@@ -921,7 +1046,7 @@ dtx_obj_sync(uuid_t po_uuid, uuid_t co_uuid, struct ds_cont_child *cont,
 		if (rc == 0)
 			break;
 
-		rc = dtx_commit(po_uuid, co_uuid, dtes, rc, map_ver, true);
+		rc = dtx_commit(po_uuid, co_uuid, dtes, rc, true);
 		dtx_free_committable(dtes);
 		if (rc < 0) {
 			D_ERROR("Fail to commit dtx: "DF_RC"\n", DP_RC(rc));

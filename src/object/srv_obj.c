@@ -1434,7 +1434,8 @@ ds_obj_tgt_update_handler(crt_rpc_t *rpc)
 		       orw->orw_epoch, orw->orw_map_ver,
 		       &orw->orw_oid, orw->orw_dkey_hash, DAOS_INTENT_UPDATE,
 		       orw->orw_dti_cos.ca_arrays, orw->orw_dti_cos.ca_count,
-		       &dth);
+		       orw->orw_shard_tgts.ca_arrays,
+		       orw->orw_shard_tgts.ca_count, NULL, &dth);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for update "DF_RC".\n",
 			DP_UOID(orw->orw_oid), DP_RC(rc));
@@ -1538,19 +1539,12 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 	if (obj_rpc_is_fetch(rpc)) {
 		if (orw->orw_flags & ORF_CSUM_REPORT) {
 			obj_log_csum_err();
-			D_GOTO(out, rc = -DER_CSUM);
+			D_GOTO(reply, rc = -DER_CSUM);
 		}
 
 		rc = obj_local_rw(rpc, ioc.ioc_coh, ioc.ioc_coc,
 				  NULL, NULL, NULL, NULL);
-		D_GOTO(out, rc);
-	} else if (orw->orw_iod_array.oia_oiods != NULL) {
-		rc = obj_ec_rw_req_split(orw, &split_req);
-		if (rc != 0) {
-			D_ERROR(DF_UOID": obj_ec_rw_req_split failed, rc %d.\n",
-				DP_UOID(orw->orw_oid), rc);
-			D_GOTO(out, rc);
-		}
+		D_GOTO(reply, rc);
 	}
 
 	version = orw->orw_map_ver;
@@ -1562,7 +1556,7 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 		rc = dtx_handle_resend(ioc.ioc_vos_coh, &orw->orw_dti,
 				       &epoch, &version);
 		if (rc == -DER_ALREADY)
-			D_GOTO(out, rc = 0);
+			D_GOTO(reply, rc = 0);
 
 		if (rc == 0) {
 			flags |= ORF_RESEND;
@@ -1570,10 +1564,19 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 		} else if (rc == -DER_NONEXIST) {
 			rc = 0;
 		} else {
-			D_GOTO(out, rc);
+			D_GOTO(reply, rc);
 		}
 	} else if (DAOS_FAIL_CHECK(DAOS_DTX_LOST_RPC_REQUEST)) {
 		goto cleanup;
+	}
+
+	if (orw->orw_iod_array.oia_oiods != NULL) {
+		rc = obj_ec_rw_req_split(orw, &split_req);
+		if (rc != 0) {
+			D_ERROR(DF_UOID": obj_ec_rw_req_split failed, rc %d.\n",
+				DP_UOID(orw->orw_oid), rc);
+			D_GOTO(reply, rc);
+		}
 	}
 
 	D_TIME_START(time_start, OBJ_PF_UPDATE);
@@ -1596,11 +1599,11 @@ renew:
 			      &orw->orw_oid, orw->orw_dkey_hash,
 			      DAOS_INTENT_UPDATE,
 			      orw->orw_shard_tgts.ca_arrays,
-			      orw->orw_shard_tgts.ca_count, &dlh);
+			      orw->orw_shard_tgts.ca_count, NULL, &dlh);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for update "DF_RC".\n",
 			DP_UOID(orw->orw_oid), DP_RC(rc));
-		D_GOTO(out, rc);
+		D_GOTO(reply, rc);
 	}
 
 	if (orw->orw_flags & ORF_DTX_SYNC)
@@ -1614,7 +1617,7 @@ again:
 	exec_arg.flags	  = flags;
 	/* Execute the operation on all targets */
 	rc = dtx_leader_exec_ops(&dlh, obj_tgt_update, &exec_arg);
-out:
+
 	if (opc == DAOS_OBJ_RPC_UPDATE &&
 	    DAOS_FAIL_CHECK(DAOS_DTX_LEADER_ERROR))
 		rc = -DER_IO;
@@ -1632,11 +1635,11 @@ out:
 		D_GOTO(again, rc);
 	}
 
+reply:
 	if (opc == DAOS_OBJ_RPC_UPDATE && !(orw->orw_flags & ORF_RESEND) &&
 	    DAOS_FAIL_CHECK(DAOS_DTX_LOST_RPC_REPLY))
 		goto cleanup;
 
-reply:
 	obj_rw_reply(rpc, rc, ioc.ioc_map_ver, ioc.ioc_coh);
 
 cleanup:
@@ -2061,7 +2064,8 @@ ds_obj_tgt_punch_handler(crt_rpc_t *rpc)
 		       opi->opi_epoch, opi->opi_map_ver,
 		       &opi->opi_oid, opi->opi_dkey_hash, DAOS_INTENT_PUNCH,
 		       opi->opi_dti_cos.ca_arrays, opi->opi_dti_cos.ca_count,
-		       &dth);
+		       opi->opi_shard_tgts.ca_arrays,
+		       opi->opi_shard_tgts.ca_count, NULL, &dth);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for punch "DF_RC".\n",
 			DP_UOID(opi->opi_oid), DP_RC(rc));
@@ -2201,7 +2205,7 @@ renew:
 			      &opi->opi_oid, opi->opi_dkey_hash,
 			      DAOS_INTENT_PUNCH,
 			      opi->opi_shard_tgts.ca_arrays,
-			      opi->opi_shard_tgts.ca_count, &dlh);
+			      opi->opi_shard_tgts.ca_count, NULL, &dlh);
 	if (rc != 0) {
 		D_ERROR(DF_UOID": Failed to start DTX for punch "DF_RC".\n",
 			DP_UOID(opi->opi_oid), DP_RC(rc));
@@ -2218,7 +2222,7 @@ again:
 	exec_arg.flags = flags;
 	/* Execute the operation on all shards */
 	rc = dtx_leader_exec_ops(&dlh, obj_tgt_punch, &exec_arg);
-out:
+
 	if (DAOS_FAIL_CHECK(DAOS_DTX_LEADER_ERROR))
 		rc = -DER_IO;
 
@@ -2235,6 +2239,7 @@ out:
 		D_GOTO(again, rc);
 	}
 
+out:
 	if (!(opi->opi_flags & ORF_RESEND) &&
 	    DAOS_FAIL_CHECK(DAOS_DTX_LOST_RPC_REPLY))
 		goto cleanup;
@@ -2324,7 +2329,7 @@ ds_obj_sync_handler(crt_rpc_t *rpc)
 		D_GOTO(out, rc);
 
 	rc = dtx_obj_sync(osi->osi_pool_uuid, osi->osi_co_uuid, ioc.ioc_coc,
-			  &osi->osi_oid, oso->oso_epoch, ioc.ioc_map_ver);
+			  &osi->osi_oid, oso->oso_epoch);
 
 out:
 	obj_reply_map_version_set(rpc, ioc.ioc_map_ver);
