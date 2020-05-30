@@ -1071,6 +1071,11 @@ obj_local_rw(crt_rpc_t *rpc, struct ds_cont_hdl *cont_hdl,
 				    orw->orw_sgls.ca_count);
 		}
 
+		rc = dtx_sub_init(dth, &orw->orw_oid, orw->orw_dkey_hash,
+				  orw->orw_flags & ORF_EC);
+		if (rc != 0)
+			goto out;
+
 		rc = vos_update_begin(cont->sc_hdl, orw->orw_oid,
 			      orw->orw_epoch,
 			      orw->orw_api_flags | VOS_OF_USE_TIMESTAMPS,
@@ -1431,8 +1436,7 @@ ds_obj_tgt_update_handler(crt_rpc_t *rpc)
 	}
 
 	rc = dtx_begin(ioc.ioc_coc, &orw->orw_dti,
-		       orw->orw_epoch, orw->orw_map_ver,
-		       &orw->orw_oid, orw->orw_dkey_hash, DAOS_INTENT_UPDATE,
+		       orw->orw_epoch, orw->orw_map_ver, &orw->orw_oid,
 		       orw->orw_dti_cos.ca_arrays, orw->orw_dti_cos.ca_count,
 		       orw->orw_shard_tgts.ca_arrays,
 		       orw->orw_shard_tgts.ca_count, NULL, &dth);
@@ -1509,6 +1513,8 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 	uint32_t			flags = 0;
 	uint32_t			opc = opc_get(rpc->cr_opc);
 	struct obj_ec_split_req		*split_req = NULL;
+	struct dtx_id			*dti_cos = NULL;
+	int				dti_cos_cnt;
 	uint32_t			version;
 	int				rc;
 
@@ -1582,8 +1588,20 @@ ds_obj_rw_handler(crt_rpc_t *rpc)
 	D_TIME_START(time_start, OBJ_PF_UPDATE);
 
 renew:
-	/*
-	 * Since we do not know if other replicas execute the
+	/* For leader case, we need to find out the potential conflict
+	 * (or share the same non-committed object/dkey) DTX(s) in the
+	 * CoS (committable) cache, piggyback them via the dispdatched
+	 * RPC to non-leaders. Then the non-leader replicas can commit
+	 * them before real modifications to avoid availability issues.
+	 */
+	D_FREE(dti_cos);
+	dti_cos_cnt = dtx_list_cos(ioc.ioc_coc, &orw->orw_oid,
+				   orw->orw_dkey_hash, DTX_THRESHOLD_COUNT,
+				   &dti_cos);
+	if (dti_cos_cnt < 0)
+		D_GOTO(reply, rc = dti_cos_cnt);
+
+	/* Since we do not know if other replicas execute the
 	 * operation, so even the operation has been execute
 	 * locally, we will start dtx and forward reqests to
 	 * all replicas.
@@ -1596,8 +1614,7 @@ renew:
 	 */
 	rc = dtx_leader_begin(ioc.ioc_coc, &orw->orw_dti,
 			      orw->orw_epoch, version,
-			      &orw->orw_oid, orw->orw_dkey_hash,
-			      DAOS_INTENT_UPDATE,
+			      &orw->orw_oid, dti_cos, dti_cos_cnt,
 			      orw->orw_shard_tgts.ca_arrays,
 			      orw->orw_shard_tgts.ca_count, NULL, &dlh);
 	if (rc != 0) {
@@ -1643,6 +1660,8 @@ reply:
 	obj_rw_reply(rpc, rc, ioc.ioc_map_ver, ioc.ioc_coh);
 
 cleanup:
+	D_FREE(dti_cos);
+
 	D_TIME_END(time_start, OBJ_PF_UPDATE);
 	obj_ec_split_req_fini(split_req);
 	obj_ioc_end(&ioc, rc);
@@ -1986,6 +2005,11 @@ obj_local_punch(struct obj_punch_in *opi, crt_opcode_t opc,
 		dth = NULL;
 	}
 
+	rc = dtx_sub_init(dth, &opi->opi_oid, opi->opi_dkey_hash,
+			  opi->opi_flags & ORF_EC);
+	if (rc != 0)
+		goto out;
+
 	switch (opc) {
 	case DAOS_OBJ_RPC_PUNCH:
 	case DAOS_OBJ_RPC_TGT_PUNCH:
@@ -2061,8 +2085,7 @@ ds_obj_tgt_punch_handler(crt_rpc_t *rpc)
 
 	/* Start the local transaction */
 	rc = dtx_begin(ioc.ioc_coc, &opi->opi_dti,
-		       opi->opi_epoch, opi->opi_map_ver,
-		       &opi->opi_oid, opi->opi_dkey_hash, DAOS_INTENT_PUNCH,
+		       opi->opi_epoch, opi->opi_map_ver, &opi->opi_oid,
 		       opi->opi_dti_cos.ca_arrays, opi->opi_dti_cos.ca_count,
 		       opi->opi_shard_tgts.ca_arrays,
 		       opi->opi_shard_tgts.ca_count, NULL, &dth);
@@ -2125,6 +2148,8 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 	struct obj_punch_in		*opi;
 	struct ds_obj_exec_arg		exec_arg = { 0 };
 	struct obj_io_context		ioc;
+	struct dtx_id			*dti_cos = NULL;
+	int				dti_cos_cnt;
 	uint32_t			flags = 0;
 	uint32_t			version;
 	int				rc;
@@ -2188,8 +2213,20 @@ ds_obj_punch_handler(crt_rpc_t *rpc)
 	}
 
 renew:
-	/*
-	 * Since we do not know if other replicas execute the
+	/* For leader case, we need to find out the potential conflict
+	 * (or share the same non-committed object/dkey) DTX(s) in the
+	 * CoS (committable) cache, piggyback them via the dispdatched
+	 * RPC to non-leaders. Then the non-leader replicas can commit
+	 * them before real modifications to avoid availability issues.
+	 */
+	D_FREE(dti_cos);
+	dti_cos_cnt = dtx_list_cos(ioc.ioc_coc, &opi->opi_oid,
+				   opi->opi_dkey_hash, DTX_THRESHOLD_COUNT,
+				   &dti_cos);
+	if (dti_cos_cnt < 0)
+		D_GOTO(out, rc = dti_cos_cnt);
+
+	/* Since we do not know if other replicas execute the
 	 * operation, so even the operation has been execute
 	 * locally, we will start dtx and forward reqests to
 	 * all replicas.
@@ -2202,8 +2239,7 @@ renew:
 	 */
 	rc = dtx_leader_begin(ioc.ioc_coc, &opi->opi_dti,
 			      opi->opi_epoch, version,
-			      &opi->opi_oid, opi->opi_dkey_hash,
-			      DAOS_INTENT_PUNCH,
+			      &opi->opi_oid, dti_cos, dti_cos_cnt,
 			      opi->opi_shard_tgts.ca_arrays,
 			      opi->opi_shard_tgts.ca_count, NULL, &dlh);
 	if (rc != 0) {
@@ -2246,6 +2282,8 @@ out:
 
 	obj_punch_complete(rpc, rc, ioc.ioc_map_ver);
 cleanup:
+	D_FREE(dti_cos);
+
 	obj_ioc_end(&ioc, rc);
 }
 

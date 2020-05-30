@@ -52,8 +52,11 @@ struct dtx_handle {
 	daos_handle_t			 dth_coh;
 	/** The epoch# for the DTX. */
 	daos_epoch_t			 dth_epoch;
-	/** The identifier of the shard to be modified. */
-	daos_unit_oid_t			 dth_oid;
+	/**
+	 * The object ID is used to elect the DTX leader,
+	 * mainly used for CoS (for single RDG case) and DTX recovery.
+	 */
+	daos_unit_oid_t			 dth_leader_oid;
 
 	uint32_t			 dth_sync:1, /* commit synchronously. */
 					 /* Only one participator in the DTX. */
@@ -65,7 +68,13 @@ struct dtx_handle {
 					 /* The DTX entry is in active table. */
 					 dth_active:1,
 					 /* Need to free dth_actors. */
-					 dth_free_actors:1;
+					 dth_free_actors:1,
+					 /* Leader oid is touched. */
+					 dth_touched_leader_oid:1,
+					 /* Local TX is started. */
+					 dth_local_tx_started:1,
+					 /* The last sub-modification for DTX */
+					 dth_last_modification:1;
 
 	/* The count the DTXs in the dth_dti_cos array. */
 	uint32_t			 dth_dti_cos_count;
@@ -75,12 +84,20 @@ struct dtx_handle {
 	void				*dth_ent;
 	/** The flags, see dtx_entry_flags. */
 	uint16_t			 dth_flags;
-
 	/** Modification sequence in the distributed transaction. */
 	uint16_t			 dth_op_seq;
-	/** The intent of related modification. */
-	uint32_t			 dth_intent;
-	/* The hash of the dkey to be modified if applicable */
+
+	/** The count of EC objects that are modified by this DTX. */
+	uint16_t			 dth_ec_oid_cnt;
+	/** The total slots in the dth_ec_oid_array. */
+	uint16_t			 dth_ec_oid_cap;
+	/**
+	 * If more than one EC objects are modified, the IDs are reocrded here,
+	 * mainly used for EC aggregation.
+	 */
+	daos_unit_oid_t			*dth_ec_oid_array;
+
+	/* Hash of the dkey to be modified if applicable. Per modification. */
 	uint64_t			 dth_dkey_hash;
 };
 
@@ -128,14 +145,23 @@ enum dtx_status {
 };
 
 int
+dtx_sub_init(struct dtx_handle *dth, daos_unit_oid_t *oid,
+	     uint64_t dkey_hash, bool is_ec);
+
+int
 dtx_leader_begin(struct ds_cont_child *cont, struct dtx_id *dti,
 		 daos_epoch_t epoch, uint32_t pm_ver,
-		 daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
+		 daos_unit_oid_t *leader_oid,
+		 struct dtx_id *dti_cos, int dti_cos_cnt,
 		 struct daos_shard_tgt *tgts, int tgt_cnt,
 		 struct dtx_actors *actors, struct dtx_leader_handle *dlh);
 int
 dtx_leader_end(struct dtx_leader_handle *dlh, struct ds_cont_child *cont,
 	       int result);
+
+int
+dtx_list_cos(struct ds_cont_child *cont, daos_unit_oid_t *oid,
+	     uint64_t dkey_hash, int max, struct dtx_id **dtis);
 
 typedef void (*dtx_sub_comp_cb_t)(struct dtx_leader_handle *dlh, int idx,
 				  int rc);
@@ -144,8 +170,7 @@ typedef int (*dtx_sub_func_t)(struct dtx_leader_handle *dlh, void *arg, int idx,
 
 int
 dtx_begin(struct ds_cont_child *cont, struct dtx_id *dti,
-	  daos_epoch_t epoch, uint32_t pm_ver,
-	  daos_unit_oid_t *oid, uint64_t dkey_hash, uint32_t intent,
+	  daos_epoch_t epoch, uint32_t pm_ver, daos_unit_oid_t *leader_oid,
 	  struct dtx_id *dti_cos, int dti_cos_cnt,
 	  struct daos_shard_tgt *tgts, int tgt_cnt, struct dtx_actors *actors,
 	  struct dtx_handle *dth);
