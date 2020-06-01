@@ -50,6 +50,10 @@ daos_cont_csum_prop_is_valid(uint16_t val);
 bool
 daos_cont_csum_prop_is_enabled(uint16_t val);
 
+/** Convert a string into a property value for csum property */
+int
+daos_str2csumcontprop(const char *value);
+
 /**
  * -----------------------------------------------------------
  * DAOS Checksummer
@@ -70,6 +74,9 @@ enum DAOS_CSUM_TYPE {
 
 	CSUM_TYPE_END = 7,
 };
+
+
+
 
 struct dcs_csum_info {
 	/** buffer to store the checksums */
