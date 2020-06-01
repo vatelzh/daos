@@ -422,7 +422,8 @@ dc_io_epoch_set(struct dc_obj_epoch *epoch)
 {
 	if (srv_io_mode == DIM_CLIENT_DISPATCH) {
 		epoch->oe_value = crt_hlc_get();
-		epoch->oe_uncertain = true;
+		/* DIM_CLIENT_DISPATCH doesn't promise consistency. */
+		epoch->oe_uncertain = false;
 	} else {
 		epoch->oe_value = DAOS_EPOCH_MAX;
 		epoch->oe_uncertain = false; /* not applicable */
