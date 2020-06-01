@@ -546,9 +546,10 @@ A write at epoch e follows these rules:
         reject
 
 A transaction involving both reads and writes must follow both sets of rules.
-As an optimization, read-only transactions do not need to update read
-timestamps. Snapshot creations, however, must update the read timestamps as if
-it is a transaction reading the whole container.
+As optimizations, single-read transactions and snapshot (read) transactions
+do not need to update read timestamps. Snapshot creations, however, must
+update the read timestamps as if it is a transaction reading the whole
+container.
 
 When a transaction is rejected, it restarts with the same transaction ID but a
 higher epoch. If the epoch becomes higher than the original epoch plus epsilon,
