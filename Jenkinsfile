@@ -360,7 +360,7 @@ pipeline {
                         }
                     }
                     steps {
-                         echo 'RPM-test-version == ' + cachedCommitPragma(pragma: 'RPM-test-version')
+                         echo 'RPM-test-version == "' + cachedCommitPragma(pragma: 'RPM-test-version') + '"'
                          githubNotify credentialsId: 'daos-jenkins-commit-status',
                                       description: env.STAGE_NAME,
                                       context: "build" + "/" + env.STAGE_NAME,
