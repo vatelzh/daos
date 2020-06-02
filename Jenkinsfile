@@ -310,10 +310,10 @@ pipeline {
         SSH_KEY_ARGS = "-ici_key"
         CLUSH_ARGS = "-o$SSH_KEY_ARGS"
         QUICKBUILD_DEPS_EL7 = sh script: "rpmspec -q --undefine suse_version --define rhel\\ 7 --srpm --requires utils/rpms/daos.spec 2>/dev/null",
-                                 returnStdout: true)
-        QUICKBUILD_DEPS_LEAP15 = sh(script: "rpmspec -q --undefine rhel --define suse_version\\ 1501 --srpm --requires utils/rpms/daos.spec 2>/dev/null",
-                                    returnStdout: true)
-        TEST_RPMS = cachedCommitPragma(pragma: 'RPM-test', def_val: 'false')
+                                 returnStdout: true
+        QUICKBUILD_DEPS_LEAP15 = sh script: "rpmspec -q --undefine rhel --define suse_version\\ 1501 --srpm --requires utils/rpms/daos.spec 2>/dev/null",
+                                    returnStdout: true
+        TEST_RPMS = cachedCommitPragma pragma: 'RPM-test', def_val: 'false'
     }
 
     options {
