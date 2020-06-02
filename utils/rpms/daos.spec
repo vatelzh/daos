@@ -184,6 +184,8 @@ sed -i -e '/AppendUnique(RPATH=.*)/d' $rpath_files
 
 %define conf_dir %{_sysconfdir}/daos
 
+module avail || true
+module list || true
 scons %{?_smp_mflags}      \
       --config=force       \
       USE_INSTALLED=all    \
@@ -374,10 +376,10 @@ getent group daos_admins >/dev/null || groupadd -r daos_admins
 * Thu May 14 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-16
 - Fix fuse3-libs -> libfuse3 for SLES/Leap 15
 
-* Mon Apr 30 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-15
+* Thu Apr 30 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-15
 - Use new properly pre-release tagged mercury RPM
 
-* Mon Apr 30 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-14
+* Thu Apr 30 2020 Brian J. Murrell <brian.murrell@intel.com> - 1.1.0-14
 - Move fuse dependencies to the client subpackage
 
 * Mon Apr 27 2020 Michael MacDonald <mjmac.macdonald@intel.com> 1.1.0-13
