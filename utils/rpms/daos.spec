@@ -184,11 +184,6 @@ sed -i -e '/AppendUnique(RPATH=.*)/d' $rpath_files
 
 %define conf_dir %{_sysconfdir}/daos
 
-%if (0%{?suse_version} >= 1500)
-export MODULEPATH=/usr/share/modules
-%endif
-module avail || true
-module list || true
 scons %{?_smp_mflags}      \
       --config=force       \
       USE_INSTALLED=all    \
