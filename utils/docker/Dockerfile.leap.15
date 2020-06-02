@@ -65,7 +65,12 @@ RUN update-ca-certificates
 RUN zypper --non-interactive rm Modules;                                                                                                                                                  \
     zypper --non-interactive install --allow-unsigned-rpm https://build.hpdd.intel.com/job/daos-stack/job/lua-lmod/job/PR-1/lastSuccessfulBuild/artifact/artifacts/leap15/lua-lmod-8.2.5-lp152.1.01.x86_64.rpm
 
- RUN zypper --non-interactive addrepo \
+RUN pip install --upgrade pip; \
+    pip install -U setuptools; \
+    pip install -U wheel;      \
+    pip install scons==3.0.1
+
+RUN zypper --non-interactive addrepo \
     https://download.opensuse.org/repositories/devel:languages:go/openSUSE_Leap_15.1/devel:languages:go.repo; \
     zypper --non-interactive --gpg-auto-import-keys refresh; \
     zypper --non-interactive install -y ipmctl-devel go
@@ -117,8 +122,9 @@ RUN if $QUICKBUILD; then                                                        
     fi
 
 # scratch build of scons-3.1.2
-RUN curl -v -L -o scons-3.1.2-lp152.87.1.x86_64.rpm https://da.gd/kpFS &&             \
-    zypper --non-interactive --no-gpg-checks install scons-3.1.2-lp152.87.1.x86_64.rpm
+# seems to have been removed.  :-(
+#RUN curl -v -L -o scons-3.1.2-lp152.87.1.x86_64.rpm https://da.gd/kpFS &&             \
+#    zypper --non-interactive --no-gpg-checks install scons-3.1.2-lp152.87.1.x86_64.rpm
 
 # force an upgrade to get any newly built RPMs
 ARG CACHEBUST=1
