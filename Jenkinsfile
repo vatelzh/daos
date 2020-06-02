@@ -1424,6 +1424,7 @@ pipeline {
                                           test_tag: 'pr,-hw',
                                           node_count: 9,
                                           ftest_arg: ''
+                    }
                     post {
                         always {
                             functional_post_always()
@@ -1450,8 +1451,8 @@ pipeline {
                                          status: 'ERROR'
                         }
                         */
-                    }
-                }
+                    } // post
+                } // stage('Functional on Leap 15')
                 stage('Functional_Hardware_Small') {
                     when {
                         beforeAgent true
@@ -1508,7 +1509,7 @@ pipeline {
                         }
                         */
                     }
-                }
+                } // stage('Functional_Hardware_Small')
                 stage('Functional_Hardware_Medium') {
                     when {
                         beforeAgent true
@@ -1565,7 +1566,7 @@ pipeline {
                         }
                         */
                     }
-                }
+                } // stage('Functional_Hardware_Medium')
                 stage('Functional_Hardware_Large EL7') {
                     when {
                         beforeAgent true
@@ -1622,7 +1623,7 @@ pipeline {
                         }
                         */
                     }
-                }
+                } // stage('Functional_Hardware_Large EL7')
                 stage('Functional_Hardware_Large Leap15') {
                     when {
                         beforeAgent true
@@ -1679,7 +1680,7 @@ pipeline {
                         }
                         */
                     }
-                }
+                } // stage('Functional_Hardware_Large Leap15')
                 stage('Test CentOS 7 RPMs') {
                     when {
                         beforeAgent true
@@ -1746,12 +1747,12 @@ pipeline {
                         }
                     }
                 } // stage('Scan CentOS 7 RPMs')
-            }
-        }
-    }
+            } // parallel
+        } // stage('Test')
+    } // stages
     post {
         unsuccessful {
             notifyBrokenBranch branches: target_branch
         }
-    }
+    } // post
 }
