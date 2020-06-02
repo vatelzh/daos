@@ -411,6 +411,11 @@ pipeline {
                                           (if cd $mockroot/result/; then
                                                cp -r . $artdir
                                            fi)'''
+                            sh """if [ -f /var/lib/mock/epel-7-x86_64/root/builddir/build/BUILD/daos-*/config${arch}.log ]; then
+                                      mv /var/lib/mock/epel-7-x86_64/root/builddir/build/BUILD/daos-*/config${arch}.log config.log-centos7-rpm
+                                  fi"""
+                            archiveArtifacts artifacts: 'config.log-centos7-rpm',
+                                             allowEmptyArchive: true
                         }
                         cleanup {
                             archiveArtifacts artifacts: 'artifacts/centos7/**'
@@ -489,6 +494,11 @@ pipeline {
                                           (if cd $mockroot/result/; then
                                                cp -r . $artdir
                                            fi)'''
+                            sh """if [ -f /var/lib/mock/opensuse-leap-15.1-x86_64/root/builddir/build/BUILD/daos-*/config${arch}.log ]; then
+                                      mv /var/lib/mock/opensuse-leap-15.1-x86_64/root/builddir/build/BUILD/daos-*/config${arch}.log config.log-leap15-rpm
+                                  fi"""
+                            archiveArtifacts artifacts: 'config.log-leap15-rpm',
+                                             allowEmptyArchive: true
                         }
                         cleanup {
                             archiveArtifacts artifacts: 'artifacts/leap15/**'
