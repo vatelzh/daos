@@ -343,7 +343,7 @@ pipeline {
                     allOf {
                         expression { ! skip_stage('build') }
                         expression { ! doc_only_change() }
-                        expression { cachedCommitPragma(pragma: 'RPM-test-version') == '' }
+                        //expression { cachedCommitPragma(pragma: 'RPM-test-version') == '' }
                     }
                 }
             }
@@ -360,6 +360,7 @@ pipeline {
                         }
                     }
                     steps {
+                         echo 'RPM-test-version == ' + cachedCommitPragma(pragma: 'RPM-test-version')
                          githubNotify credentialsId: 'daos-jenkins-commit-status',
                                       description: env.STAGE_NAME,
                                       context: "build" + "/" + env.STAGE_NAME,
