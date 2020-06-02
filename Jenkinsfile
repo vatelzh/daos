@@ -309,11 +309,9 @@ pipeline {
                     "--build-arg CACHEBUST=${currentBuild.startTimeInMillis}"
         SSH_KEY_ARGS = "-ici_key"
         CLUSH_ARGS = "-o$SSH_KEY_ARGS"
-        CART_COMMIT = sh(script: "sed -ne 's/CART *= *\\(.*\\)/\\1/p' utils/build.config",
-                         returnStdout: true).trim()
-        QUICKBUILD_DEPS_EL7 = sh(script: "rpmspec -q --undefine suse_version --define rhel\\ 7 --define cart_sha1\\ ${env.CART_COMMIT} --srpm --requires utils/rpms/daos.spec 2>/dev/null",
+        QUICKBUILD_DEPS_EL7 = sh script: "rpmspec -q --undefine suse_version --define rhel\\ 7 --srpm --requires utils/rpms/daos.spec 2>/dev/null",
                                  returnStdout: true)
-        QUICKBUILD_DEPS_LEAP15 = sh(script: "rpmspec -q --undefine rhel --define suse_version\\ 1501 --define cart_sha1\\ ${env.CART_COMMIT} --srpm --requires utils/rpms/daos.spec 2>/dev/null",
+        QUICKBUILD_DEPS_LEAP15 = sh(script: "rpmspec -q --undefine rhel --define suse_version\\ 1501 --srpm --requires utils/rpms/daos.spec 2>/dev/null",
                                     returnStdout: true)
         TEST_RPMS = cachedCommitPragma(pragma: 'RPM-test', def_val: 'false')
     }
@@ -446,8 +444,8 @@ pipeline {
                         catchError(stageResult: 'UNSTABLE', buildResult: 'SUCCESS') {
                             sh label: env.STAGE_NAME,
                                script: '''rm -rf artifacts/leap15/
-                                  mkdir -p artifacts/leap15/
-                                  make CHROOT_NAME="opensuse-leap-15.1-x86_64" -C utils/rpms chrootbuild'''
+                                          mkdir -p artifacts/leap15/
+                                          make CHROOT_NAME="opensuse-leap-15.1-x86_64" -C utils/rpms chrootbuild'''
                         }
                     }
                     post {
@@ -506,7 +504,6 @@ pipeline {
                                                 '$BUILDARGS ' +
                                                 '--build-arg QUICKBUILD=' + quickbuild() +
                                                 ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS +
-                                                '" --build-arg CART_COMMIT=-' + env.CART_COMMIT +
                                                 '" --build-arg REPOS="' + component_repos() + '"'
                         }
                     }
@@ -790,7 +787,6 @@ pipeline {
                                                 '$BUILDARGS ' +
                                                 '--build-arg QUICKBUILD=' + env.QUICKBUILD +
                                                 ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS_LEAP15 +
-                                                '" --build-arg CART_COMMIT=-' + env.CART_COMMIT +
                                                 ' --build-arg REPOS="' + component_repos + '"'
                         }
                     }
@@ -1031,9 +1027,8 @@ pipeline {
                                        snapshot: true,
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
-                                                  ' cart-' + env.CART_COMMIT + ' ' +
                                                   el7_functional_rpms
-                        runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
+                        runFunctionalTest stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
                                           test_tag: 'pr,-hw',
@@ -1083,9 +1078,8 @@ pipeline {
                                        distro: 'opensuse15',
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
-                                                  ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
-                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
                                           test_tag: 'pr,-hw',
@@ -1140,9 +1134,8 @@ pipeline {
                                        distro: 'opensuse15',
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
-                                                  ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
-                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-small',
                                           test_tag: 'pr,hw,small',
@@ -1197,9 +1190,8 @@ pipeline {
                                        distro: 'opensuse15',
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
-                                                  ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
-                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-medium',
                                           test_tag: 'pr,hw,medium,ib2',
@@ -1254,9 +1246,8 @@ pipeline {
                                        distro: 'el7',
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
-                                                  ' cart-' + env.CART_COMMIT + ' ' +
                                                   el7_functional_rpms
-                        runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
+                        runFunctionalTest stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-large',
                                           test_tag: 'pr,hw,large',
@@ -1311,9 +1302,8 @@ pipeline {
                                        distro: 'opensuse15',
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
-                                                  ' cart-' + env.CART_COMMIT + ' ' +
                                                   leap15_functional_rpms
-                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-large',
                                           test_tag: 'pr,hw,large',
