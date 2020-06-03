@@ -796,9 +796,9 @@ pipeline {
                             label 'docker_runner'
                             additionalBuildArgs "-t ${sanitized_JOB_NAME}-leap15 " +
                                                 '$BUILDARGS ' +
-                                                '--build-arg QUICKBUILD=' + env.QUICKBUILD +
+                                                '--build-arg QUICKBUILD=' + quickbuild() +
                                                 ' --build-arg QUICKBUILD_DEPS="' + env.QUICKBUILD_DEPS_LEAP15 +
-                                                ' --build-arg REPOS="' + component_repos + '"'
+                                                '" --build-arg REPOS="' + component_repos() + '"'
                         }
                     }
                     steps {
@@ -811,28 +811,32 @@ pipeline {
                         stash name: 'Leap-install', includes: 'install/**'
                         stash name: 'Leap-build-vars', includes: ".build_vars${arch}.*"
                         stash name: 'Leap-tests',
-                                    includes: '''build/src/rdb/raft/src/tests_main,
-                                                 build/src/common/tests/btree_direct,
-                                                 build/src/common/tests/btree,
-                                                 build/src/common/tests/sched,
-                                                 build/src/common/tests/drpc_tests,
-                                                 build/src/common/tests/acl_api_tests,
-                                                 build/src/common/tests/acl_valid_tests,
-                                                 build/src/common/tests/acl_util_tests,
-                                                 build/src/common/tests/acl_principal_tests,
-                                                 build/src/common/tests/acl_real_tests,
-                                                 build/src/common/tests/prop_tests,
-                                                 build/src/iosrv/tests/drpc_progress_tests,
-                                                 build/src/control/src/github.com/daos-stack/daos/src/control/mgmt,
-                                                 build/src/client/api/tests/eq_tests,
-                                                 build/src/iosrv/tests/drpc_handler_tests,
-                                                 build/src/iosrv/tests/drpc_listener_tests,
-                                                 build/src/mgmt/tests/srv_drpc_tests,
-                                                 build/src/security/tests/cli_security_tests,
-                                                 build/src/security/tests/srv_acl_tests,
-                                                 build/src/vos/vea/tests/vea_ut,
-                                                 build/src/common/tests/umem_test,
-                                                 build/src/bio/smd/tests/smd_ut,
+                                    includes: '''build/*/*/src/cart/src/utest/test_linkage,
+                                                 build/*/*/src/cart/src/utest/test_gurt,
+                                                 build/*/*/src/cart/src/utest/utest_hlc,
+                                                 build/*/*/src/cart/src/utest/utest_swim,
+                                                 build/*/*/src/rdb/raft/src/tests_main,
+                                                 build/*/*/src/common/tests/btree_direct,
+                                                 build/*/*/src/common/tests/btree,
+                                                 build/*/*/src/common/tests/sched,
+                                                 build/*/*/src/common/tests/drpc_tests,
+                                                 build/*/*/src/common/tests/acl_api_tests,
+                                                 build/*/*/src/common/tests/acl_valid_tests,
+                                                 build/*/*/src/common/tests/acl_util_tests,
+                                                 build/*/*/src/common/tests/acl_principal_tests,
+                                                 build/*/*/src/common/tests/acl_real_tests,
+                                                 build/*/*/src/common/tests/prop_tests,
+                                                 build/*/*/src/iosrv/tests/drpc_progress_tests,
+                                                 build/*/*/src/control/src/github.com/daos-stack/daos/src/control/mgmt,
+                                                 build/*/*/src/client/api/tests/eq_tests,
+                                                 build/*/*/src/iosrv/tests/drpc_handler_tests,
+                                                 build/*/*/src/iosrv/tests/drpc_listener_tests,
+                                                 build/*/*/src/mgmt/tests/srv_drpc_tests,
+                                                 build/*/*/src/security/tests/cli_security_tests,
+                                                 build/*/*/src/security/tests/srv_acl_tests,
+                                                 build/*/*/src/vos/vea/tests/vea_ut,
+                                                 build/*/*/src/common/tests/umem_test,
+                                                 build/*/*/src/bio/smd/tests/smd_ut,
                                                  scons_local/build_info/**,
                                                  src/common/tests/btree.sh,
                                                  src/control/run_go_tests.sh,
