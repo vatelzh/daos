@@ -1095,14 +1095,18 @@ pipeline {
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
                         sh label: "Update kernel to Leap 15.2 release",
-                           script: 'clush -B -S -l root -w ' + env.NODELIST + ' ' +
+                           script: 'if ! clush -B -S -l root -w ' + env.NODELIST + ' ' +
                                  '''"set -ex
                                      zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.2/repo/oss/ 15.2_oss
                                      zypper --non-interactive --gpg-auto-import-keys ref 15.2_oss 
-                                     zypper --non-interactive up kernel
+                                     zypper --non-interactive lr
+                                     zypper --non-interactive search -s kernel-default
+                                     zypper --non-interactive up kernel-default
                                      zypper --non-interactive rr 15.2_oss
                                      rpm -qa | grep kernel
-                                     sync; sync; init 6"''',
+                                     sync; sync; init 6"; then
+                                        echo "kernel install and reboot exited ${PIPESTATUS[0]}"
+                                    fi''',
                            returnStdout: true
                         waitForNodeReadySystem NODELIST: nodeString, ready_command: "hostname"
                         sh label: "Verify kernel releases",
