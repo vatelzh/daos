@@ -163,6 +163,26 @@ def parallel_build() {
     return false
 }
 
+def update_kernel() {
+    sh label: "Update kernel to Leap 15.2 release",
+       script: 'if ! clush -B -S -l root -w ' + env.NODELIST + ' ' +
+             '''"set -ex
+                 zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.2/repo/oss/ 15.2_oss
+                 zypper --non-interactive --gpg-auto-import-keys ref 15.2_oss 
+                 zypper --non-interactive lr
+                 zypper --non-interactive search -s kernel-default
+                 zypper --non-interactive up kernel-default
+                 zypper --non-interactive rr 15.2_oss
+                 rpm -qa | grep kernel
+                 sync; sync; init 6"; then
+                    echo "kernel install and reboot exited ${PIPESTATUS[0]}"
+                fi'''
+    waitForNodeReadySystem NODELIST: env.NODELIST, ready_command: "hostname"
+    sh label: "Verify kernel releases",
+       script: 'clush -B -S -l root -w ' + env.NODELIST + ' ' +
+               '"set -ex; uname -a"'
+}
+
 target_branch = env.CHANGE_TARGET ? env.CHANGE_TARGET : env.BRANCH_NAME
 def arch = ""
 def sanitized_JOB_NAME = JOB_NAME.toLowerCase().replaceAll('/', '-').replaceAll('%2f', '-')
@@ -1094,23 +1114,7 @@ pipeline {
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
-                        sh label: "Update kernel to Leap 15.2 release",
-                           script: 'if ! clush -B -S -l root -w ' + env.NODELIST + ' ' +
-                                 '''"set -ex
-                                     zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.2/repo/oss/ 15.2_oss
-                                     zypper --non-interactive --gpg-auto-import-keys ref 15.2_oss 
-                                     zypper --non-interactive lr
-                                     zypper --non-interactive search -s kernel-default
-                                     zypper --non-interactive up kernel-default
-                                     zypper --non-interactive rr 15.2_oss
-                                     rpm -qa | grep kernel
-                                     sync; sync; init 6"; then
-                                        echo "kernel install and reboot exited ${PIPESTATUS[0]}"
-                                    fi'''
-                        waitForNodeReadySystem NODELIST: env.NODELIST, ready_command: "hostname"
-                        sh label: "Verify kernel releases",
-                           script: 'clush -B -S -l root -w ' + env.NODELIST + ' ' +
-                                   '"set -ex; uname -a"'
+                        update_kernel()
                         runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
@@ -1167,23 +1171,7 @@ pipeline {
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
-                        sh label: "Update kernel to Leap 15.2 release",
-                           script: 'if ! clush -B -S -l root -w ' + env.NODELIST + ' ' +
-                                 '''"set -ex
-                                     zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.2/repo/oss/ 15.2_oss
-                                     zypper --non-interactive --gpg-auto-import-keys ref 15.2_oss 
-                                     zypper --non-interactive lr
-                                     zypper --non-interactive search -s kernel-default
-                                     zypper --non-interactive up kernel-default
-                                     zypper --non-interactive rr 15.2_oss
-                                     rpm -qa | grep kernel
-                                     sync; sync; init 6"; then
-                                        echo "kernel install and reboot exited ${PIPESTATUS[0]}"
-                                    fi'''
-                        waitForNodeReadySystem NODELIST: env.NODELIST, ready_command: "hostname"
-                        sh label: "Verify kernel releases",
-                           script: 'clush -B -S -l root -w ' + env.NODELIST + ' ' +
-                                   '"set -ex; uname -a"'
+                        update_kernel()
                         runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-small',
@@ -1240,6 +1228,7 @@ pipeline {
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
+                        update_kernel()
                         runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-medium',
@@ -1352,6 +1341,7 @@ pipeline {
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
+                        update_kernel()
                         runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-large',
