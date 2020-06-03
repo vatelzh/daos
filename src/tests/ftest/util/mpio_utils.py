@@ -24,7 +24,7 @@
 from __future__ import print_function
 
 import os
-
+import subprocess
 from env_modules import load_mpi
 from command_utils_base import EnvironmentVariables
 from general_utils import run_command, DaosTestError
@@ -49,6 +49,7 @@ class MpioUtils():
 
         Returns:
             bool: whether mpich is installed on the first host in the list
+
         """
         load_mpi('mpich')
         print("Post load_mpi('mpich'):")
