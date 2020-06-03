@@ -1094,8 +1094,20 @@ pipeline {
                                        inst_repos: leap15_daos_repos(),
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
-                        sh label: "Update kernel to Leap 15.2 release",
-                           script: "http://download.opensuse.org/distribution/leap/15.2/repo/oss/x86_64/kernel-default-5.3.18-lp152.16.3.x86_64.rpm"
+                        /* from provisionNodes, since this is just temporary
+                        rc = sh label: "Update kernel to Leap 15.2 release",
+                                script: '''zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.2/repo/oss/ 15.2_oss
+                                           zypper --non-interactive --gpg-auto-import-keys ref 15.2_oss 
+                                           zypper --non-interactive in kernel
+                                           zypper --non-interactive rr 15.2_oss
+                                           rpm -qa | grep kernel
+                                           sync; sync; init 6''',
+                                returnStatus: true
+                        if (rc != 0 && (reboot && rc != 255)) {
+                            error "Failed to install new kernel and reboot node: " + rc + "!"
+                        }
+                        waitForNodeReadySystem NODELIST: nodeString, ready_command: "hostname"
+                        */
                         runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
