@@ -137,8 +137,13 @@ def daos_packages_version(String distro) {
     // TODO: this should actually be determined from the PR-repos artifacts
     def version = cachedCommitPragma(pragma: 'RPM-test-version')
     if (version != "") {
-        return version +
-               sh(script: "rpm --eval %dist", returnStdout: true)
+        String dist
+        if (distro == "centos7") {
+            dist = "el7"
+        } else if (distro == "leap15") {
+            dist = "suse.lp151"
+        }
+        return version + "." + distro
     }
 
     // use the stash after that
