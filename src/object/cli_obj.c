@@ -2389,14 +2389,13 @@ shard_rw_prep(struct shard_auxi_args *shard_auxi, struct dc_object *obj,
 	obj_args = dc_task_get_args(obj_auxi->obj_task);
 	shard_arg = container_of(shard_auxi, struct shard_rw_args, auxi);
 
-	if (obj_auxi->opc == DAOS_OBJ_RPC_UPDATE) {
-		if (daos_handle_is_inval(obj_auxi->th))
-			daos_dti_gen(&shard_arg->dti,
-				     (srv_io_mode != DIM_DTX_FULL_ENABLED) ||
-				     daos_obj_is_echo(obj->cob_md.omd_id));
-		else
-			dc_tx_get_dti(obj_auxi->th, &shard_arg->dti);
-	}
+	if (daos_handle_is_inval(obj_auxi->th))
+		daos_dti_gen(&shard_arg->dti,
+			     obj_auxi->opc == DAOS_OBJ_RPC_FETCH ||
+			     srv_io_mode != DIM_DTX_FULL_ENABLED ||
+			     daos_obj_is_echo(obj->cob_md.omd_id));
+	else
+		dc_tx_get_dti(obj_auxi->th, &shard_arg->dti);
 
 	shard_arg->api_args		= obj_args;
 	shard_arg->dkey_hash		= dkey_hash;
