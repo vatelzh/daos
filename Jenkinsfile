@@ -137,7 +137,8 @@ def daos_packages_version(String distro) {
     // TODO: this should actually be determined from the PR-repos artifacts
     def version = cachedCommitPragma(pragma: 'RPM-test-version')
     if (version != "") {
-        return version
+        return version + "." + 
+               sh("rpm --eval %dist", returnStdout: true)
     }
 
     // use the stash after that
@@ -343,7 +344,7 @@ pipeline {
                     allOf {
                         expression { ! skip_stage('build') }
                         expression { ! doc_only_change() }
-                        //expression { cachedCommitPragma(pragma: 'RPM-test-version') == '' }
+                        expression { cachedCommitPragma(pragma: 'RPM-test-version') == '' }
                     }
                 }
             }
@@ -360,7 +361,6 @@ pipeline {
                         }
                     }
                     steps {
-                         echo 'RPM-test-version == "' + cachedCommitPragma(pragma: 'RPM-test-version') + '"'
                          githubNotify credentialsId: 'daos-jenkins-commit-status',
                                       description: env.STAGE_NAME,
                                       context: "build" + "/" + env.STAGE_NAME,
@@ -1106,13 +1106,11 @@ pipeline {
                                      rpm -qa | grep kernel
                                      sync; sync; init 6"; then
                                         echo "kernel install and reboot exited ${PIPESTATUS[0]}"
-                                    fi''',
-                           returnStdout: true
-                        waitForNodeReadySystem NODELIST: nodeString, ready_command: "hostname"
+                                    fi'''
+                        waitForNodeReadySystem NODELIST: env.NODELIST, ready_command: "hostname"
                         sh label: "Verify kernel releases",
                            script: 'clush -B -S -l root -w ' + env.NODELIST + ' ' +
-                                   '"set -ex; uname -a"',
-                           returnStdout: true
+                                   '"set -ex; uname -a"'
                         runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
