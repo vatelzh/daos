@@ -138,7 +138,7 @@ def daos_packages_version(String distro) {
     def version = cachedCommitPragma(pragma: 'RPM-test-version')
     if (version != "") {
         return version + "." + 
-               sh("rpm --eval %dist", returnStdout: true)
+               sh(script: "rpm --eval %dist", returnStdout: true)
     }
 
     // use the stash after that
