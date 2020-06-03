@@ -143,7 +143,7 @@ def daos_packages_version(String distro) {
         } else if (distro == "leap15") {
             dist = "suse.lp151"
         }
-        return version + "." + distro
+        return version + "." + dist
     }
 
     // use the stash after that
