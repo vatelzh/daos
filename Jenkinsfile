@@ -1068,7 +1068,7 @@ pipeline {
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
                                                   el7_functional_rpms
-                        runFunctionalTest stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
+                        runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
                                           test_tag: 'pr,-hw',
@@ -1120,7 +1120,7 @@ pipeline {
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
                         update_kernel()
-                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '',
                                           test_tag: 'pr,-hw',
@@ -1177,7 +1177,7 @@ pipeline {
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
                         update_kernel()
-                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-small',
                                           test_tag: 'pr,hw,small',
@@ -1234,7 +1234,7 @@ pipeline {
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
                         update_kernel()
-                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-medium',
                                           test_tag: 'pr,hw,medium,ib2',
@@ -1290,7 +1290,7 @@ pipeline {
                                        inst_repos: el7_daos_repos(),
                                        inst_rpms: get_daos_packages('centos7') + ' ' +
                                                   el7_functional_rpms
-                        runFunctionalTest stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
+                        runTestFunctional stashes: [ 'CentOS-install', 'CentOS-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-large',
                                           test_tag: 'pr,hw,large',
@@ -1347,7 +1347,7 @@ pipeline {
                                        inst_rpms: get_daos_packages('leap15') + ' ' +
                                                   leap15_functional_rpms
                         update_kernel()
-                        runFunctionalTest stashes: [ 'Leap-install', 'Leap-build-vars' ],
+                        runTestFunctional stashes: [ 'Leap-install', 'Leap-build-vars' ],
                                           test_rpms: env.TEST_RPMS,
                                           pragma_suffix: '-hw-large',
                                           test_tag: 'pr,hw,large',
