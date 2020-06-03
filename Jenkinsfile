@@ -137,7 +137,7 @@ def daos_packages_version(String distro) {
     // TODO: this should actually be determined from the PR-repos artifacts
     def version = cachedCommitPragma(pragma: 'RPM-test-version')
     if (version != "") {
-        return version + "." + 
+        return version +
                sh(script: "rpm --eval %dist", returnStdout: true)
     }
 
