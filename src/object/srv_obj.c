@@ -1650,12 +1650,12 @@ out:
 	rc = dtx_leader_end(&dlh, ioc.ioc_coc, rc);
 	if (rc == -DER_TX_RESTART) {
 		/*
-		 * If this is a standalone operation, which can only be a
-		 * standalone update currently, we can restart the internal
-		 * transaction right here. Otherwise, we have to defer the
-		 * restart to the RPC client.
+		 * If this is a standalone operation, we can restart the
+		 * internal transaction right here. Otherwise, we have to defer
+		 * the restart to the RPC client.
 		 */
-		if (daos_is_zero_dti(&orw->orw_dti)) {
+		if (opc == DAOS_OBJ_RPC_UPDATE ||
+		    daos_is_zero_dti(&orw->orw_dti)) {
 			/* Retry with newer epoch. */
 			orw->orw_epoch = crt_hlc_get();
 			flags &= ~ORF_RESEND;
@@ -2273,18 +2273,11 @@ out:
 	/* Stop the distribute transaction */
 	rc = dtx_leader_end(&dlh, ioc.ioc_coc, rc);
 	if (rc == -DER_TX_RESTART) {
-		/*
-		 * If this is a standalone punch, we can restart the internal
-		 * transaction right here. Otherwise, we have to defer the
-		 * restart to the RPC client.
-		 */
-		if (daos_is_zero_dti(&opi->opi_dti)) {
-			/* Retry with newer epoch. */
-			opi->opi_epoch = crt_hlc_get();
-			flags &= ~ORF_RESEND;
-			memset(&dlh, 0, sizeof(dlh));
-			D_GOTO(renew, rc);
-		}
+		/* Retry with newer epoch. */
+		opi->opi_epoch = crt_hlc_get();
+		flags &= ~ORF_RESEND;
+		memset(&dlh, 0, sizeof(dlh));
+		D_GOTO(renew, rc);
 	} else if (rc == -DER_AGAIN) {
 		flags |= ORF_RESEND;
 		D_GOTO(again, rc);
